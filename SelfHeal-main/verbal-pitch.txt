@@ -1,0 +1,5 @@
+"We just launched our new self-healing suite against a checkout page. Notice the fragility scan flags weak selectors before we even start. 
+
+The first step tries an old email ID. It fails perfectly. But instead of crashing the pipeline, our engine captures the DOM, reads the developer's intent string, and Gemini finds the exact replacement instantly. 
+
+Watch the right panel as it pieces together the root cause and continues. The flow completes smoothly. And here is the clean, zero-intervention JSON audit report."

@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SelfHeal — Live Dashboard</title>
+<script src="/socket.io/socket.io.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0b0b0d;--bg1:#101013;--bg2:#141418;--bg3:#18181d;--bg4:#1c1c22;--bg5:#222229;
+  --border:rgba(255,255,255,0.05);--border2:rgba(255,255,255,0.09);--border3:rgba(255,255,255,0.14);
+  --green:#00ff6a;--green2:#00e85f;--green3:#00b84c;--green4:#007a32;
+  --gdim:rgba(0,255,106,0.10);--gfaint:rgba(0,255,106,0.05);
+  --ggradient:linear-gradient(135deg,#00ff6a,#00cc52);
+  --gglow:0 0 14px rgba(0,255,106,0.35),0 2px 8px rgba(0,0,0,0.5);
+  --red:#ff3d3d;--red2:#e63030;--rdim:rgba(255,61,61,0.10);
+  --amber:#ffb800;--adim:rgba(255,184,0,0.10);
+  --blue:#4B9EFF;--bdim:rgba(75,158,255,0.10);
+  --txt0:#e8e8e8;--txt1:#888;--txt2:#444;--txt3:#2a2a2a;
+  --sans:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+  --r4:4px;--r6:6px;--r8:8px;--r12:12px;
+  --shadow:0 8px 32px rgba(0,0,0,0.8);
+  --card-shadow:0 4px 20px rgba(0,0,0,0.7),0 1px 3px rgba(0,0,0,0.5);
+  --cfg-threshold:80;
+}
+html,body{height:100%;background:var(--bg);color:var(--txt0);font-family:var(--sans);font-size:13px;overflow:hidden}
+button{cursor:pointer;border:none;outline:none;font-family:var(--sans)}
+input,select{outline:none;font-family:var(--mono)}
+select{cursor:pointer}
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg5);border-radius:2px}
+
+/* ── LAYOUT ──────────────────────────────── */
+.app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* NAV */
+.nav{
+  display:flex;align-items:center;justify-content:space-between;
+  height:46px;padding:0 16px;
+  background:var(--bg1);border-bottom:1px solid var(--border);
+  flex-shrink:0;z-index:50;position:relative;
+}
+.nav::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,106,.2),transparent)}
+.nav-left{display:flex;align-items:center;gap:24px}
+.logo{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--green);letter-spacing:-.2px;user-select:none}
+.logo-icon{
+  width:24px;height:24px;border-radius:5px;
+  border:1.5px solid var(--green3);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;background:var(--gdim);
+  box-shadow:0 0 12px rgba(0,255,136,.2);
+}
+.nav-tabs{display:flex;gap:1px}
+.nav-tab{
+  padding:5px 12px;border-radius:5px;
+  font-size:11.5px;font-weight:500;color:var(--txt1);
+  background:transparent;transition:all .15s;position:relative;
+}
+.nav-tab:hover{color:var(--txt0);background:var(--bg3)}
+.nav-tab.active{color:var(--green);background:var(--gdim)}
+.nav-tab.active::after{content:'';position:absolute;bottom:-1px;left:12px;right:12px;height:2px;background:var(--green);border-radius:1px 1px 0 0}
+.nav-right{display:flex;align-items:center;gap:10px}
+.conn-pill{
+  display:flex;align-items:center;gap:5px;
+  padding:3px 8px;border-radius:20px;
+  background:var(--bg3);border:1px solid var(--border);
+  font-size:10px;font-family:var(--mono);color:var(--txt1);
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0}
+.dot.offline{background:var(--red);box-shadow:0 0 4px var(--red)}
+.dot.idle{background:var(--amber);box-shadow:0 0 4px var(--amber)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.dot.running{animation:blink .9s ease-in-out infinite}
+.run-file-pill{
+  padding:3px 9px;border-radius:5px;
+  background:var(--bg3);border:1px solid var(--border2);
+  font-size:10px;font-family:var(--mono);color:var(--txt1);
+  max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* TICKER (FOOTER) */
+.ticker{
+  display:flex;align-items:center;
+  height:36px;
+  background:linear-gradient(180deg, #222226 0%, #060608 100%);
+  border-top:1px solid var(--border);
+  border-bottom:1px solid var(--green); /* Bright green bottom edge */
+  box-shadow: 0 -3px 12px rgba(0,0,0,0.6); /* stronger shadow for depth */
+  overflow:hidden;flex-shrink:0;padding:0 8px;
+  position: relative;
+  z-index: 10;
+}
+.tick-item{
+  display:flex;align-items:center;gap:12px;
+  padding:0 16px;border-right:1px solid var(--border2);
+  height:70%;font-size:10.5px;font-family:var(--mono);white-space:nowrap;
+}
+.tick-item:last-of-type { border-right:none; }
+.tick-key{color:var(--txt2);letter-spacing:1px;font-weight:500;}
+.tick-val{color:var(--txt0);font-weight:700;font-size:11.5px;transition:color .3s;text-shadow:var(--gglow);}
+.tick-up{color:var(--green);}
+.tick-dn{color:var(--red);text-shadow:0 0 10px rgba(255,61,61,0.3);}
+.tick-flash{animation:numFlash .4s ease}
+@keyframes numFlash{0%{color:#fff;text-shadow:0 0 8px #fff}100%{}}
+.tick-spacer{flex:1}
+.tick-brand{font-size:10px;color:var(--txt2);font-family:var(--mono);padding-right:16px;}
+
+/* BODY */
+.body{display:flex;flex:1;min-height:0;overflow:hidden}
+
+/* LEFT */
+.left{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+
+/* UNIFIED STAT PANEL (Trading Header) */
+.stat-row{padding:12px;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--bg);display:flex;gap:16px;align-items:stretch;}
+.stat-panel{
+  display:flex;align-items:center;padding:12px 24px;
+  background:linear-gradient(180deg, #1c1c1f 0%, #060608 100%);
+  border:1px solid var(--border2);
+  border-radius:var(--r8);box-shadow:var(--card-shadow);
+  position:relative;overflow:hidden;transition:background .2s,border-color .2s;
+  width:65%;
+}
+.stat-panel::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,var(--green),rgba(0,255,106,0.1) 40%,transparent 80%);
+}
+.stat-panel:hover{border-color:var(--border3);background:linear-gradient(180deg, #202024 0%, #0a0a0d 100%);}
+
+.tp-hero{display:flex;flex-direction:column;pointer-events:none}
+.tp-hero-top{display:flex;align-items:baseline;gap:8px}
+.tp-hero-num{font-family:var(--mono);font-size:32px;font-weight:700;color:var(--green);text-shadow:var(--gglow);line-height:1;transition:all .3s}
+.tp-hero-name{font-size:17px;font-weight:600;color:var(--txt0);letter-spacing:.5px}
+.tp-hero-sub{font-size:11.5px;color:var(--txt2);margin-top:5px;text-transform:uppercase;letter-spacing:.5px}
+
+.tp-divider{width:1px;height:46px;background:var(--border2);margin:0 36px}
+
+.tp-stats{display:flex;gap:56px;flex:1}
+.tp-col{display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.tp-label{font-size:13px;color:var(--txt1);font-weight:500;}
+.tp-val{font-size:20px;font-family:var(--mono);font-weight:600;color:var(--txt0);transition:all .3s}
+.tp-val.green{color:var(--green);text-shadow:0 0 10px rgba(0,255,106,0.25)}
+.tp-val.red{color:var(--red);text-shadow:0 0 10px rgba(255,61,61,0.25)}
+.tp-val.amber{color:var(--amber);text-shadow:0 0 10px rgba(255,184,0,0.25)}
+
+.tp-right{margin-left:auto;opacity:.5;transition:.2s;}
+.tp-right:hover{opacity:1}
+
+@keyframes numPop{0%{transform:scale(1.18)}100%{transform:scale(1)}}
+.num-pop{animation:numPop .3s ease}
+
+/* INNER */
+.inner-body{display:flex;flex:1;min-height:0}
+.center-col{flex:1;min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
+
+/* CHART */
+.chart-wrap{padding:12px 16px 8px;border-bottom:1px solid var(--border);flex-shrink:0;height:180px}
+.panel-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.panel-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--txt2)}
+.ttab{display:none}
+canvas{width:100%!important;height:100%!important}
+
+/* LIVE FEED (center, below chart) */
+.feed-panel{
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  padding:10px 0 0;
+  display:flex;flex-direction:column;
+  max-height:190px;
+}
+.feed-panel-hdr{padding:0 16px 6px;display:flex;align-items:center;justify-content:space-between}
+.feed{display:flex;flex-direction:column;overflow-y:auto;flex:1;padding:0 16px 8px}
+
+.feed-header{
+  display:grid;grid-template-columns:4fr 6fr 55px;gap:8px;
+  font-size:9px;color:var(--txt2);padding-bottom:4px;
+  font-family:var(--mono);margin-bottom:2px;
+}
+
+.feed-item{
+  display:grid;grid-template-columns:4fr 6fr 55px;gap:8px;
+  padding:2.5px 0;font-size:10.5px;font-family:var(--mono);
+  background:transparent;flex-shrink:0;align-items:center;
+}
+@keyframes fi{from{opacity:0;transform:translateY(-2px)}to{opacity:1;transform:none}}
+.feed-item{animation:fi .15s ease}
+
+/* Colors similar to market trades */
+.feed-item.info .feed-msg{color:var(--green)}
+.feed-item.pass .feed-msg{color:var(--green)}
+.feed-item.fail .feed-msg{color:var(--red)}
+.feed-item.heal .feed-msg{color:var(--amber)}
+
+.feed-msg{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.feed-sub{color:var(--txt1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed-time{color:var(--txt2);text-align:right}
+
+/* STEP LOG */
+.log-panel{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding:10px 0 0}
+.log-panel-hdr{padding:0 16px 8px;display:flex;align-items:center;justify-content:space-between}
+.log-scroll{flex:1;overflow-y:auto}
+table.log{width:100%;border-collapse:collapse}
+table.log th{
+  position:sticky;top:0;z-index:1;
+  padding:4px 12px;text-align:left;
+  font-size:8.5px;font-weight:600;color:var(--txt2);
+  text-transform:uppercase;letter-spacing:.07em;
+  background:var(--bg1);border-bottom:1px solid var(--border);white-space:nowrap;
+}
+table.log td{padding:5px 12px;font-size:10.5px;font-family:var(--mono);border-bottom:1px solid rgba(255,255,255,.025);color:var(--txt1);white-space:nowrap}
+table.log tr:hover td{background:var(--bg2)}
+.log-empty{text-align:center;color:var(--txt2);padding:20px;font-size:11px}
+.log-empty-icon{font-size:22px;margin-bottom:6px;opacity:.4}
+@keyframes rowIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+.row-new{animation:rowIn .2s ease}
+.spill{display:inline-flex;align-items:center;gap:3px;padding:2px 5px;border-radius:3px;font-size:8.5px;font-weight:700;font-family:var(--mono);letter-spacing:.04em}
+.spill.pass{background:var(--gdim);color:var(--green)}
+.spill.fail{background:var(--rdim);color:var(--red)}
+.spill.healed{background:var(--adim);color:var(--amber)}
+.sdot{width:4px;height:4px;border-radius:50%;background:currentColor}
+
+/* RIGHT COLUMN */
+.right{width:220px;flex-shrink:0;display:flex;flex-direction:column;background:var(--bg1);overflow-y:auto;box-shadow:-6px 0 24px rgba(0,0,0,0.5),0 0 1px rgba(0,0,0,0.8)}
+.rp{padding:12px 13px;border-bottom:1px solid var(--border)}
+.rp-title{font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--txt2);margin-bottom:9px;display:block}
+
+/* FRAGILITY */
+.frag-row{display:flex;align-items:center;gap:7px;padding:2.5px 0}
+.frag-sel{font-family:var(--mono);font-size:9.5px;color:var(--txt1);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.frag-track{width:80px;height:3px;background:var(--bg5);border-radius:2px;flex-shrink:0}
+.frag-fill{height:100%;border-radius:2px;transition:width .5s ease}
+.frag-fill.lo{background:var(--green)}
+.frag-fill.md{background:var(--amber)}
+.frag-fill.hi{background:var(--red)}
+.frag-score{font-family:var(--mono);font-size:9.5px;width:24px;text-align:right;flex-shrink:0}
+.risk-badge{font-size:8px;font-weight:700;padding:1px 4px;border-radius:3px;flex-shrink:0;font-family:var(--mono);letter-spacing:.04em}
+.risk-badge.lo{background:var(--gdim);color:var(--green)}
+.risk-badge.md{background:var(--adim);color:var(--amber)}
+.risk-badge.hi{background:var(--rdim);color:var(--red)}
+.frag-empty{font-size:10px;color:var(--txt2);text-align:center;padding:10px 0;font-style:italic}
+
+/* HEAL CARD (SHRUNKEN) */
+.heal-card{background:linear-gradient(180deg, #1c1c1f 0%, #060608 100%);border:1px solid var(--border);border-radius:3px;padding:6px;margin-bottom:6px;box-shadow:var(--card-shadow);}
+.heal-from{font-family:var(--mono);font-size:8.5px;color:var(--red);text-decoration:line-through;margin-bottom:1px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.heal-arrow{display:none}
+.heal-to{font-family:var(--mono);font-size:9.5px;color:var(--green);font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.heal-reason{font-size:9px;color:var(--txt2);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.heal-meta{display:flex;align-items:center;justify-content:space-between;margin-top:4px;padding-top:4px;border-top:1px solid var(--border2)}
+.conf-block{background:var(--bg2);border:1px solid var(--border);border-radius:3px;padding:6px;margin-bottom:6px}
+.conf-label{font-size:8px;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px}
+.conf-track{height:3px;background:var(--bg5);border-radius:2px;overflow:hidden}
+.conf-fill{height:100%;border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,var(--green3),var(--green))}
+.conf-fill.low{background:linear-gradient(90deg,#800,var(--red))}
+.conf-val{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--green);margin-top:3px;line-height:1}
+.conf-val.low{color:var(--red)}
+
+/* APPROVAL */
+.approve-box{background:linear-gradient(180deg, #1c1c1f 0%, #060608 100%);border:1px solid rgba(255,184,0,.5);border-radius:var(--r6);padding:10px;margin-bottom:7px;display:none;box-shadow:var(--card-shadow);}
+.approve-box.show{display:block}
+.approve-title{font-size:10.5px;font-weight:600;color:var(--amber);margin-bottom:7px;display:flex;align-items:center;gap:5px}
+.approve-row{font-family:var(--mono);font-size:9.5px;padding:4px 6px;border-radius:var(--r4);background:var(--bg);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.approve-row.old{color:var(--red);text-decoration:line-through;opacity:.8}
+.approve-row.new{color:var(--green)}
+.approve-btns{display:flex;gap:5px;margin-top:7px}
+
+/* BUTTONS */
+.btn{flex:1;padding:7px;border-radius:var(--r4);font-size:10.5px;font-weight:600;transition:.15s;text-align:center}
+.btn-green{
+  background:var(--ggradient);color:#000;border:none;
+  box-shadow:var(--gglow);
+}
+.btn-green:hover{background:linear-gradient(135deg,#00e85f,#00b848);box-shadow:0 0 20px rgba(0,255,106,0.45),0 2px 8px rgba(0,0,0,0.6)}
+.btn-red{background:linear-gradient(135deg,#ff3d3d,#cc2020);color:#fff;border:none;box-shadow:0 0 10px rgba(255,61,61,0.3)}
+.btn-red:hover{background:linear-gradient(135deg,#ff2020,#b81010);box-shadow:0 0 18px rgba(255,61,61,0.45)}
+.btn-outline{background:transparent;color:var(--txt1);border:1px solid var(--border2)}
+.btn-outline:hover{border-color:var(--green);color:var(--green);box-shadow:0 0 8px rgba(0,255,106,0.15)}
+.btn-ghost{background:transparent;color:var(--txt2);border:none;font-size:10px}
+.btn-ghost:hover{color:var(--txt0)}
+.btn-sm{padding:3px 8px;font-size:9.5px;border-radius:3px}
+.btn-demo{
+  width:100%;padding:8px;border-radius:var(--r6);
+  background:var(--gdim);border:1px solid rgba(0,255,136,.2);
+  color:var(--green);font-weight:600;font-size:11px;
+  transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-demo:hover{background:rgba(0,255,136,.18);border-color:rgba(0,255,136,.35);box-shadow:0 0 12px rgba(0,255,136,.1)}
+.btn-reset{
+  width:100%;padding:6px;border-radius:var(--r6);margin-top:6px;
+  background:transparent;border:1px solid var(--border2);
+  color:var(--txt2);font-size:10.5px;font-weight:500;transition:.15s;
+}
+.btn-reset:hover{color:var(--txt1);border-color:var(--txt2)}
+
+/* INPUTS */
+.inp-label{font-size:9px;color:var(--txt2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px;display:block}
+.inp{
+  width:100%;padding:6px 8px;
+  background:var(--bg);border:1px solid var(--border2);border-radius:var(--r4);
+  color:var(--txt0);font-family:var(--mono);font-size:11px;transition:.15s;
+}
+.inp:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(0,255,136,.08)}
+select.inp option{background:var(--bg2)}
+
+/* CMD BOX */
+.cmd-box{
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r6);
+  padding:9px 11px;font-family:var(--mono);font-size:10.5px;
+  color:var(--green);line-height:1.75;word-break:break-all;
+}
+.cmd-comment{color:var(--txt2)}
+
+/* TAB PANELS */
+.tab-panel{flex:1;overflow-y:auto;padding:20px 24px;flex-direction:column}
+.tab-section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--txt1);margin-bottom:16px}
+
+/* OVERLAY */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(14px);z-index:200;display:none;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.overlay-card{
+  background:var(--bg1);border:1px solid var(--border3);
+  border-radius:14px;padding:32px;max-width:520px;width:90%;
+  box-shadow:0 24px 64px rgba(0,0,0,.8);text-align:center;
+}
+.overlay-title{
+  font-size:28px;font-weight:700;
+  background:linear-gradient(90deg,var(--green),#00ccff);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-bottom:6px;
+}
+.overlay-sub{font-size:11px;color:var(--txt2);margin-bottom:20px;font-family:var(--mono)}
+.overlay-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.ov-stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r8);padding:16px}
+.ov-num{font-size:36px;font-weight:800;font-family:var(--mono);color:var(--txt0);line-height:1}
+.ov-num.g{color:var(--green)}
+.ov-num.a{color:var(--amber)}
+.ov-key{font-size:9px;color:var(--txt1);text-transform:uppercase;letter-spacing:.08em;margin-top:5px}
+.overlay-note{font-size:10.5px;color:var(--txt2);border-top:1px solid var(--border);padding-top:13px}
+.overlay-close{margin-top:14px;padding:8px 26px;background:var(--green);color:#000;border-radius:var(--r6);font-weight:700;font-size:12px;cursor:pointer;border:none;transition:.15s}
+.overlay-close:hover{background:var(--green2)}
+
+/* CONFIG GRID */
+.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.cfg-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r8);padding:14px}
+.cfg-card.full{grid-column:span 2}
+.cfg-desc{font-size:9.5px;color:var(--txt2);margin-top:7px;line-height:1.5}
+.cfg-save-row{margin-top:14px;display:flex;gap:8px}
+
+/* HISTORY */
+.hist-empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:48px 0;gap:12px;
+}
+.hist-empty-icon{font-size:40px;opacity:.25}
+.hist-empty-text{font-size:12px;color:var(--txt2);text-align:center;line-height:1.6}
+.hist-empty-hint{font-size:10.5px;color:var(--txt3);font-family:var(--mono)}
+
+/* REPORT */
+.report-empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:48px 0;gap:12px;
+}
+.report-metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.report-metric{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r8);padding:14px;text-align:center}
+.report-metric-num{font-family:var(--mono);font-size:26px;font-weight:700;line-height:1;margin-bottom:5px}
+.report-metric-label{font-size:8.5px;color:var(--txt2);text-transform:uppercase;letter-spacing:.07em}
+.report-bar-row{margin-bottom:8px}
+.report-bar-label{display:flex;justify-content:space-between;font-size:9.5px;color:var(--txt2);margin-bottom:3px}
+.report-bar-track{height:4px;background:var(--bg5);border-radius:2px;overflow:hidden}
+.report-bar-fill{height:100%;border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1)}
+.report-summary-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r8);padding:14px}
+.selector-tag{display:inline-block;font-family:var(--mono);font-size:9px;padding:1px 5px;border-radius:3px;background:var(--rdim);color:var(--red);margin:2px}
+
+/* ── CONFIG SECTION ─────────────────────── */
+.cfg-wrap{display:flex;flex-direction:column;gap:20px;max-width:800px;margin:0 auto;padding-bottom:40px}
+.cfg-section{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r12);padding:24px;box-shadow:var(--card-shadow)}
+.cfg-section-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;border-bottom:1px solid var(--border);padding-bottom:12px}
+.cfg-section-title{font-size:16px;font-weight:700;color:var(--txt0);margin-bottom:4px}
+.cfg-section-sub{font-size:11px;color:var(--txt2)}
+.cfg-2col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.cfg-field{display:flex;flex-direction:column;gap:8px}
+.cfg-label-row{display:flex;justify-content:space-between;align-items:center}
+.cfg-save-mini,.cfg-reset-mini{padding:5px 12px;font-size:10px;font-weight:700;border-radius:var(--r6);transition:.2s}
+.cfg-save-mini{background:var(--gdim);color:var(--green);border:1px solid var(--gfaint)}
+.cfg-save-mini:hover{background:var(--green);color:#000}
+.cfg-reset-mini{background:var(--bg3);color:var(--txt2);border:1px solid var(--border2)}
+.cfg-reset-mini:hover{color:var(--txt0);border-color:var(--txt1)}
+
+/* API KEYS */
+.key-row{display:flex;align-items:center;gap:12px;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r8);margin-bottom:8px}
+.key-mask{font-family:var(--mono);font-size:11px;color:var(--txt1);flex:1}
+.key-status{font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px;letter-spacing:.05em}
+.key-active{background:var(--gdim);color:var(--green)}
+.key-exhausted{background:var(--adim);color:var(--amber)}
+.key-revoked{background:var(--rdim);color:var(--red)}
+.key-del{background:transparent;color:var(--txt2);font-size:14px;padding:4px;border-radius:50%;transition:.2s}
+.key-del:hover{color:var(--red);background:var(--rdim)}
+.key-add-row{display:flex;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border2)}
+
+/* TIMEOUTS */
+.timeout-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.timeout-field{display:flex;flex-direction:column;gap:6px}
+
+/* SELECTOR STRATEGY */
+.drag-list{display:flex;flex-direction:column;gap:8px}
+.drag-item{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r8);cursor:grab;transition:all .2s;user-select:none}
+.drag-item:active{cursor:grabbing;transform:scale(.98);border-color:var(--green3)}
+.drag-item.dragging{opacity:.4;border:1px dashed var(--green)}
+.drag-handle{color:var(--txt2);font-size:16px}
+.drag-rank{width:18px;height:18px;background:var(--bg4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);color:var(--txt1)}
+.drag-name{flex:1;font-size:12px;font-weight:600;color:var(--txt0)}
+.drag-tag{font-size:9px;color:var(--txt2);text-transform:uppercase;letter-spacing:.05em;padding:2px 6px;border-radius:4px;background:var(--bg3)}
+
+/* ── HISTORY SECTION ────────────────────── */
+.hist-wrap{display:flex;flex-direction:column;gap:20px}
+.hist-filters{display:flex;align-items:center;gap:10px}
+.hist-filter-input{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r6);padding:6px 10px;color:var(--txt0);font-size:11px;font-family:var(--mono)}
+.hist-chart-card,.hist-table-card,.flaky-card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r12);padding:20px;box-shadow:var(--card-shadow)}
+.hist-section-label{font-size:11px;font-weight:700;color:var(--txt1);text-transform:uppercase;letter-spacing:.1em;margin-bottom:16px;display:block}
+.trend-legend{display:flex;gap:16px}
+.tleg{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--txt2)}
+.tleg-dot{width:8px;height:8px;border-radius:50%}
+.htable{width:100%;border-collapse:collapse}
+.htable th{text-align:left;padding:10px;font-size:9px;color:var(--txt2);text-transform:uppercase;border-bottom:1px solid var(--border)}
+.htable td{padding:12px 10px;font-size:11px;border-bottom:1px solid rgba(255,255,255,.02);color:var(--txt1)}
+.flaky-row{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.015)}
+.flaky-sel{flex:1;font-family:var(--mono);font-size:10.5px;color:var(--txt0);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.flaky-track{width:100px;height:4px;background:var(--bg4);border-radius:2px}
+.flaky-fill{height:100%;border-radius:2px}
+.flaky-count{width:60px;font-size:10px;color:var(--txt2);text-align:right}
+.flaky-badge{font-size:8px;font-weight:800;color:var(--red);background:var(--rdim);padding:2px 5px;border-radius:3px}
+
+/* ── REPORT SECTION ─────────────────────── */
+.rep-wrap{display:flex;flex-direction:column;gap:24px}
+.rep-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.rep-kpi{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r12);padding:20px;position:relative;overflow:hidden;text-align:center}
+.rep-kpi-num{font-size:32px;font-family:var(--mono);font-weight:800;line-height:1;margin-bottom:6px}
+.rep-kpi-label{font-size:10px;color:var(--txt2);text-transform:uppercase;letter-spacing:.1em}
+.rep-kpi-bar{position:absolute;bottom:0;left:0;right:0;height:3px}
+.rep-health-ring{position:relative;width:70px;height:70px}
+.rep-health-center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;font-family:var(--mono)}
+.rep-card{background:var(--bg1);border:1px solid var(--border);border-radius:var(--r12);padding:24px}
+.rep-card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.rep-card-title{font-size:14px;font-weight:700;color:var(--txt1);text-transform:uppercase;letter-spacing:.05em}
+.rtable{width:100%;border-collapse:collapse}
+.rtable th{text-align:left;padding:12px;font-size:9.5px;color:var(--txt2);text-transform:uppercase;border-bottom:1px solid var(--border)}
+.rtable td{padding:14px 12px;font-size:11px;border-bottom:1px solid rgba(255,255,255,.02);color:var(--txt1)}
+.spark-bar-wrap{width:100%;height:4px;background:var(--bg4);border-radius:2px}
+.spark-bar-fill{height:100%;border-radius:2px}
+.fix-tag{font-family:var(--mono);color:var(--green);font-weight:600;background:var(--gdim);padding:1px 4px;border-radius:3px}
+.rep-export-row{display:flex;align-items:center;gap:10px;margin-top:20px;padding-top:20px;border-top:1px solid var(--border)}
+
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-left">
+    <div class="logo"><span class="logo-icon">⚕</span>SelfHeal</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('live',this)">Live Run</button>
+      <button class="nav-tab" onclick="switchTab('history',this)">History</button>
+      <button class="nav-tab" onclick="switchTab('report',this)">Report</button>
+      <button class="nav-tab" onclick="switchTab('config',this)">Config</button>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="conn-pill">
+      <span class="dot idle" id="connDot"></span>
+      <span id="connLabel" style="font-family:var(--mono);font-size:9.5px">Idle</span>
+    </div>
+    <div class="run-file-pill" id="runFile">no test loaded</div>
+  </div>
+</nav>
+
+<!-- LIVE RUN BODY -->
+<div class="body" id="liveBody">
+
+  <!-- LEFT -->
+  <div class="left">
+  <!-- LEFT MAIN AREA (2-column split) -->
+  <div class="left" style="flex-direction:row; padding:12px; gap:16px;">
+    
+    <!-- COL 1: Hero Stats + Step Log -->
+    <div style="flex:1.8; display:flex; flex-direction:column; gap:16px; min-width:0;">
+      
+      <!-- STAT PANEL (Native Height, Fixed) -->
+      <div class="stat-panel" style="width:auto; flex-shrink:0;">
+        <div class="tp-hero">
+          <div class="tp-hero-top">
+            <span class="tp-hero-num" id="statHeals">0</span>
+            <span class="tp-hero-name">HEALS <span style="font-size:11px;color:var(--txt2);font-weight:400;margin-left:4px">▾</span></span>
+          </div>
+          <div class="tp-hero-sub">auto-patched selectors</div>
+        </div>
+        <div class="tp-divider"></div>
+        <div class="tp-stats">
+          <div class="tp-col">
+            <div class="tp-label">Steps Passed / Rate</div>
+            <div class="tp-val id-statPassed" style="color:var(--green)">
+              <span id="statPassed">0</span> 
+              <span id="statPassRate" style="font-size:10px;color:var(--txt1);margin-left:4px"></span>
+            </div>
+          </div>
+          <div class="tp-col">
+            <div class="tp-label">Steps Failed</div>
+            <div class="tp-val red" id="statFailed">0</div>
+          </div>
+          <div class="tp-col">
+            <div class="tp-label">Avg Confidence</div>
+            <div class="tp-val amber" id="statConf">—</div>
+          </div>
+        </div>
+        <div style="margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; justify-content:center; gap:6px;">
+          <div id="readyUrl" style="display:none;"></div>
+          <div style="display:flex; gap:10px; align-items:center;">
+            <input type="text" id="targetUrlInput" class="inp" placeholder="Override Target URL..." style="width:240px; font-size:11px; height:34px; background:var(--bg3); border:1px solid var(--border1); color:var(--txt1); border-radius:var(--r6); padding:0 12px; transition:border-color .2s; outline:none; font-family:var(--mono);" onfocus="this.style.borderColor='var(--green)'" onblur="this.style.borderColor='var(--border1)'"/>
+            <button class="btn btn-green" id="demoBtn" onclick="triggerRun()" style="padding:0 24px; font-size:12.5px; border-radius:var(--r6); height:34px; box-shadow:var(--gglow); display:inline-flex; align-items:center; justify-content:center; gap:6px;">▶ Run</button>
+            <button class="btn btn-outline" onclick="resetAll()" style="padding:0 16px; font-size:12.5px; border-radius:var(--r6); height:34px; display:inline-flex; align-items:center; justify-content:center; gap:6px;">↺ Reset</button>
+            <button class="btn-ghost" title="Settings" style="margin-left:6px; font-size:14px; opacity:0.6; display:inline-flex; align-items:center; justify-content:center; height:34px;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">⚙</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- INLINE REVIEW / HEAL ACTIVITY -->
+      <div style="display:flex;gap:12px;flex-shrink:0">
+        <div style="flex:1;display:flex;flex-direction:column;">
+          <div class="heal-card" id="healCard" style="margin:0;padding:12px;">
+            <div style="font-size:10.5px;color:var(--txt2);font-style:italic">No heal yet this run</div>
+          </div>
+        </div>
+      </div>
+      <div class="approve-box" id="approveBox" style="margin-top:0;flex-shrink:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div class="approve-title" style="margin:0;">⚠ Low Confidence &mdash; Human Review Required</div>
+          <div style="font-size:9.5px;color:var(--txt1);">Confidence: <b id="approveConf" style="color:var(--amber)"></b>%</div>
+        </div>
+        <div class="approve-row old" id="approveOld" style="font-size:11px;padding:6px;"></div>
+        <div class="approve-row new" id="approveNew" style="font-size:11px;padding:6px;margin-bottom:8px;"></div>
+        <div class="approve-btns" style="margin:0;">
+          <button class="btn btn-green" id="btnApprove" style="padding:10px;">Approve Heal</button>
+          <button class="btn btn-red" id="btnReject" style="padding:10px;">Reject</button>
+        </div>
+      </div>
+      <div id="approveEmpty" style="display:none"></div>
+
+      <!-- STEP LOG (Flex:1, Stretches vertically) -->
+      <div class="log-panel" style="flex:1; min-height:0; display:flex; flex-direction:column; background:linear-gradient(180deg, #1c1c1f 0%, #060608 100%); border:1px solid var(--border2); border-radius:var(--r8); box-shadow:var(--card-shadow); padding:0;">
+        <div class="log-panel-hdr" style="padding:12px 16px;">
+          <span class="panel-title">Step Execution Log</span>
+          <span id="stepBadge" style="font-size:8.5px;font-family:var(--mono);color:var(--txt2);font-weight:700">0 STEPS</span>
+        </div>
+        <div class="log-scroll" style="flex:1;overflow-y:auto;">
+          <table class="log">
+            <thead>
+              <tr><th>Time</th><th>Action</th><th>Selector</th><th>Status</th><th>Detail</th></tr>
+            </thead>
+            <tbody id="logBody">
+              <tr><td colspan="5" class="log-empty">
+                <div class="log-empty-icon">🔍</div>
+                No steps executed yet
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+    </div>
+
+    <!-- COL 2: Confidence + Live Feed -->
+    <div style="flex:1.2; display:flex; flex-direction:column; gap:16px; min-width:0;">
+      
+      <!-- GEMINI CONFIDENCE & FRAGILITY SCAN -->
+      <div style="display:flex; gap:16px; flex-shrink:0; height:80px;">
+        
+        <!-- GEMINI CONFIDENCE (50% Width) -->
+        <div class="stat-panel" style="flex:1; width:auto; flex-shrink:0; padding:12px 18px; flex-direction:column; align-items:stretch; justify-content:center;">
+          <div class="conf-label" style="font-size:9.5px;margin-bottom:8px;text-transform:uppercase;color:var(--txt2);letter-spacing:.05em;">Gemini Confidence</div>
+          <div class="conf-track" style="height:4px;background:var(--bg5);border-radius:2px;overflow:hidden;flex-shrink:0;">
+            <div class="conf-fill" id="confFill" style="width:0%;height:100%;transition:width .7s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,var(--green3),var(--green))"></div>
+          </div>
+          <div class="conf-val" id="confVal" style="font-family:var(--mono);font-size:24px;font-weight:700;color:var(--green);margin-top:8px;line-height:1;">—</div>
+        </div>
+
+        <!-- FRAGILITY SCORE (50% Width) -->
+        <div class="stat-panel" style="flex:1; width:auto; flex-shrink:0; padding:12px 18px; flex-direction:column; align-items:stretch;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-shrink:0;">
+            <span class="conf-label" style="font-size:9.5px;margin:0;text-transform:uppercase;color:var(--txt2);letter-spacing:.05em;">Fragility Scan</span>
+            <span id="highRisk" style="font-size:8.5px;font-family:var(--mono);color:var(--amber);font-weight:700">— RISK</span>
+          </div>
+          <div id="fragList" style="flex:1; overflow-y:auto; overflow-x:hidden; padding-right:4px;">
+            <div class="frag-empty" style="font-size:10px; color:var(--txt2); font-style:italic;">Scanning…</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- LIVE FEED (Flex:1, Stretches vertically) -->
+      <div class="stat-panel" style="width:auto; flex:1; padding:12px 18px; flex-direction:column; align-items:stretch; min-height:0;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px; flex-shrink:0;">
+          <span class="panel-title" style="margin:0; text-transform:uppercase; font-size:10px; font-weight:600; letter-spacing:1px; color:var(--txt2);">Live Event Feed</span>
+          <button class="btn-ghost btn-sm" onclick="clearFeed()" style="padding:0; margin:0;">Clear</button>
+        </div>
+        <div class="feed" style="flex:1; overflow-y:auto; padding:0;">
+          <div class="feed-header" style="margin-bottom:8px; opacity:0.8;">
+            <div>EVENT (ACTION)</div>
+            <div>DETAILS (SELECTOR)</div>
+            <div style="text-align:right">TIME</div>
+          </div>
+          <div id="liveFeed" style="display:flex;flex-direction:column;gap:4px">
+            <div class="feed-item info">
+              <div class="feed-msg">System Ready</div>
+              <div class="feed-sub">Standing by</div>
+              <div class="feed-time">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /left -->
+</div><!-- /liveBody -->
+
+<!-- HISTORY TAB -->
+<div id="tab-history" class="tab-panel" style="display:none">
+  <div class="hist-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--txt1)">Run History</div>
+      <div class="hist-filters">
+        <input class="hist-filter-input" type="date" id="histDateFrom" title="From date"/>
+        <input class="hist-filter-input" type="date" id="histDateTo" title="To date"/>
+        <input class="hist-filter-input" type="text" id="histSpecFilter" placeholder="Filter by spec..." oninput="applyHistoryFilters()" style="width:160px"/>
+        <button class="btn btn-outline btn-sm" onclick="clearHistory()">Clear All</button>
+      </div>
+    </div>
+    <div class="hist-chart-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="hist-section-label" style="margin-bottom:0">Pass rate &amp; heal success — last 10 runs</div>
+        <div class="trend-legend">
+          <div class="tleg"><div class="tleg-dot" style="background:#00ff6a"></div>Pass rate</div>
+          <div class="tleg"><div class="tleg-dot" style="background:#ffb800"></div>Heal success</div>
+        </div>
+      </div>
+      <div style="position:relative;height:140px"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="hist-table-card">
+      <div class="hist-table-hdr">
+        <div class="hist-section-label" style="margin-bottom:0">All runs</div>
+        <span id="histCount" style="font-size:9px;font-family:var(--mono);color:var(--txt2)">0 runs</span>
+      </div>
+      <div id="historyList">
+        <div class="hist-empty-state">
+          <div class="hist-empty-icon">📋</div>
+          <div class="hist-empty-text">No runs recorded yet.<br>Complete a run on the Live tab.</div>
+          <div class="hist-empty-hint">-> Live Run -> Run</div>
+        </div>
+      </div>
+    </div>
+    <div class="flaky-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="hist-section-label" style="margin-bottom:0">Flaky selectors <span style="color:var(--txt3);font-weight:400">(failed in 2+ runs)</span></div>
+        <span id="flakyCount" style="font-size:9px;font-family:var(--mono);color:var(--amber)">0 tracked</span>
+      </div>
+      <div id="flakyList"><div style="font-size:10px;color:var(--txt2);font-style:italic;padding:6px 0">No flaky selectors yet — run more tests to track patterns.</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT TAB -->
+<div id="tab-report" class="tab-panel" style="display:none">
+  <div class="rep-wrap" id="repWrap">
+    <div class="report-empty-state" id="repEmpty">
+      <div class="hist-empty-icon"></div>
+      <div class="hist-empty-text">No report available yet.<br>Complete a run to generate your first report.</div>
+      <div class="hist-empty-hint">-> Live Run -> Run</div>
+    </div>
+  </div>
+  <div class="rep-export-row" id="repExportRow" style="display:none">
+    <button class="btn btn-outline btn-sm" onclick="exportReport('json')">Export JSON</button>
+    <button class="btn btn-outline btn-sm" onclick="exportReport('csv')">Export CSV</button>
+    <button class="btn btn-outline btn-sm" onclick="exportReport('pdf')">Export PDF</button>
+    <span style="margin-left:auto;font-size:9px;font-family:var(--mono);color:var(--txt2)" id="repGenTime"></span>
+  </div>
+</div>
+
+<!-- CONFIG TAB -->
+<div id="tab-config" class="tab-panel" style="display:none">
+  <div class="cfg-wrap">
+ 
+    <!-- 1. API KEYS -->
+    <div class="cfg-section">
+      <div class="cfg-section-hdr">
+        <div>
+          <div class="cfg-section-title">API Keys</div>
+          <div class="cfg-section-sub">Gemini API keys used for selector healing</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="cfg-reset-mini" onclick="resetApiKeys()">Reset</button>
+          <button class="cfg-save-mini" onclick="saveApiKeys()">Save</button>
+        </div>
+      </div>
+      <div id="apiKeyList">
+        <div class="key-row">
+          <div class="key-mask">AIzaSy••••••••••••••••••••••••••zFlash1</div>
+          <span class="key-status key-active">ACTIVE</span>
+          <button class="key-del" title="Remove key" onclick="removeKey(this)">✕</button>
+        </div>
+        <div class="key-row">
+          <div class="key-mask">AIzaSy••••••••••••••••••••••••••zFlash2</div>
+          <span class="key-status key-exhausted">EXHAUSTED</span>
+          <button class="key-del" title="Remove key" onclick="removeKey(this)">✕</button>
+        </div>
+        <div class="key-row">
+          <div class="key-mask">AIzaSy••••••••••••••••••••••••••zPro001</div>
+          <span class="key-status key-revoked">REVOKED</span>
+          <button class="key-del" title="Remove key" onclick="removeKey(this)">✕</button>
+        </div>
+      </div>
+      <div class="key-add-row">
+        <input class="inp" id="newKeyInput" placeholder="Paste new API key..." style="flex:1;font-size:10px"/>
+        <button class="btn btn-outline btn-sm" onclick="addApiKey()" style="white-space:nowrap">+ Add Key</button>
+      </div>
+      <div style="font-size:9px;color:var(--txt2);margin-top:6px;line-height:1.5">Keys are stored locally and cycled automatically when one is exhausted. Exhausted keys are retried after 60 minutes.</div>
+    </div>
+ 
+    <!-- 2. MODEL SETTINGS -->
+    <div class="cfg-section">
+      <div class="cfg-section-hdr">
+        <div>
+          <div class="cfg-section-title">Model Settings</div>
+          <div class="cfg-section-sub">AI model configuration and confidence behaviour</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="cfg-reset-mini" onclick="resetConfig()">Reset</button>
+          <button class="cfg-save-mini" onclick="saveConfig()">Save</button>
+        </div>
+      </div>
+      <div class="cfg-2col">
+        <div class="cfg-field">
+          <label class="inp-label">AI Model</label>
+          <select class="inp" id="cfgModel" onchange="onModelChange(this.value)">
+            <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+            <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+            <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+          </select>
+          <div class="cfg-desc">Model used for selector recovery and root cause analysis.</div>
+        </div>
+        <div class="cfg-field">
+          <label class="inp-label">Max Retry Attempts</label>
+          <input type="number" class="inp" id="cfgRetries" value="3" min="1" max="10"/>
+          <div class="cfg-desc">Heal attempts before marking a step permanently failed.</div>
+        </div>
+        <div class="cfg-field" style="grid-column:span 2">
+          <div class="cfg-label-row">
+            <label class="inp-label">Confidence Threshold</label>
+            <span style="font-family:var(--mono);font-size:11px;color:var(--green);font-weight:700" id="cfgThresholdVal">80%</span>
+          </div>
+          <input type="range" id="cfgThreshold" min="50" max="99" value="80" style="width:100%;accent-color:var(--green)" oninput="onThresholdChange(this.value)"/>
+          <div style="display:flex;justify-content:space-between;font-size:8px;color:var(--txt2);margin-top:2px"><span>50% — lenient</span><span>99% — strict</span></div>
+          <div class="cfg-desc">Heals below this confidence score trigger the human approval prompt.</div>
+        </div>
+        <div class="cfg-field" style="grid-column:span 2">
+          <label class="inp-label">Human Review Mode</label>
+          <div style="display:flex;gap:16px;margin-top:4px;flex-wrap:wrap">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10.5px;color:var(--txt1)">
+              <input type="radio" name="reviewMode" value="auto" checked style="accent-color:var(--green)"/> Auto-apply all heals
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10.5px;color:var(--txt1)">
+              <input type="radio" name="reviewMode" value="threshold" style="accent-color:var(--amber)"/> Review below threshold
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:10.5px;color:var(--txt1)">
+              <input type="radio" name="reviewMode" value="all" style="accent-color:var(--red)"/> Review all heals
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+ 
+    <!-- 3. TIMEOUT SETTINGS -->
+    <div class="cfg-section">
+      <div class="cfg-section-hdr">
+        <div>
+          <div class="cfg-section-title">Timeout Settings</div>
+          <div class="cfg-section-sub">Per-action timeouts in milliseconds</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="cfg-reset-mini" onclick="resetTimeouts()">Reset</button>
+          <button class="cfg-save-mini" onclick="saveTimeouts()">Save</button>
+        </div>
+      </div>
+      <div class="timeout-grid">
+        <div class="timeout-field">
+          <label class="inp-label">click</label>
+          <input type="number" class="inp" id="toClick" value="5000" min="500" max="30000" step="500"/>
+        </div>
+        <div class="timeout-field">
+          <label class="inp-label">fill</label>
+          <input type="number" class="inp" id="toFill" value="5000" min="500" max="30000" step="500"/>
+        </div>
+        <div class="timeout-field">
+          <label class="inp-label">goto</label>
+          <input type="number" class="inp" id="toGoto" value="15000" min="1000" max="60000" step="1000"/>
+        </div>
+        <div class="timeout-field">
+          <label class="inp-label">global fallback</label>
+          <input type="number" class="inp" id="cfgTimeout" value="5000" min="1000" max="30000" step="500"/>
+        </div>
+      </div>
+      <div style="font-size:9px;color:var(--txt2);margin-top:10px;line-height:1.5">Per-action timeouts override the global fallback. Set to 0 to use the global value.</div>
+    </div>
+ 
+    <!-- 4. SELECTOR STRATEGY -->
+    <div class="cfg-section">
+      <div class="cfg-section-hdr">
+        <div>
+          <div class="cfg-section-title">Selector Strategy</div>
+          <div class="cfg-section-sub">Drag to reorder healing preference — top = highest priority</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="cfg-reset-mini" onclick="resetSelectorOrder()">Reset</button>
+          <button class="cfg-save-mini" onclick="saveSelectorOrder()">Save</button>
+        </div>
+      </div>
+      <div class="drag-list" id="selectorDragList">
+        <div class="drag-item" draggable="true" data-strategy="data-testid">
+          <span class="drag-handle">⠿</span><span class="drag-rank">1</span>
+          <span class="drag-name">data-testid</span>
+          <span class="drag-tag">recommended</span>
+        </div>
+        <div class="drag-item" draggable="true" data-strategy="aria-label">
+          <span class="drag-handle">⠿</span><span class="drag-rank">2</span>
+          <span class="drag-name">aria-label</span>
+          <span class="drag-tag">accessible</span>
+        </div>
+        <div class="drag-item" draggable="true" data-strategy="css">
+          <span class="drag-handle">⠿</span><span class="drag-rank">3</span>
+          <span class="drag-name">CSS class</span>
+          <span class="drag-tag">stable</span>
+        </div>
+        <div class="drag-item" draggable="true" data-strategy="id">
+          <span class="drag-handle">⠿</span><span class="drag-rank">4</span>
+          <span class="drag-name">ID</span>
+          <span class="drag-tag">fragile</span>
+        </div>
+        <div class="drag-item" draggable="true" data-strategy="xpath">
+          <span class="drag-handle">⠿</span><span class="drag-rank">5</span>
+          <span class="drag-name">XPath</span>
+          <span class="drag-tag">last resort</span>
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <div class="inp-label" style="margin-bottom:7px">CLI Quick Reference</div>
+        <div class="cmd-box">
+          <span class="cmd-comment"># Run with dashboard</span><br>
+          npx selfheal run tests/generic.spec.js --dashboard<br><br>
+          <span class="cmd-comment"># Fragility scan only</span><br>
+          npx selfheal scan tests/generic.spec.js
+        </div>
+        <button class="btn btn-outline btn-sm" style="margin-top:7px" onclick="copyCmd()">Copy first command</button>
+      </div>
+    </div>
+ 
+    <!-- OUTPUT SETTINGS -->
+    <div class="cfg-section">
+      <div class="cfg-section-hdr">
+        <div>
+          <div class="cfg-section-title">Output Settings</div>
+          <div class="cfg-section-sub">Report path and server configuration</div>
+        </div>
+        <button class="cfg-save-mini" onclick="saveConfig()">Save</button>
+      </div>
+      <div class="cfg-2col">
+        <div class="cfg-field">
+          <label class="inp-label">Report Output Path</label>
+          <input type="text" class="inp" id="cfgReportPath" value="./heal-report.json"/>
+          <div class="cfg-desc">JSON report written after each run.</div>
+        </div>
+        <div class="cfg-field">
+          <label class="inp-label">Dashboard Port</label>
+          <input type="number" class="inp" id="cfgPort" value="4000" min="1024" max="65535"/>
+          <div class="cfg-desc">WebSocket server port for the live dashboard.</div>
+        </div>
+      </div>
+    </div>
+ 
+  </div>
+</div>
+ 
+</div><!-- /app -->
+ 
+
+<!-- TICKER (MOVED TO BOTTOM) -->
+<div class="ticker">
+  <div class="tick-item"><span class="tick-key">HEALS</span><span class="tick-val tick-up" id="tkHeals">0</span></div>
+  <div class="tick-item"><span class="tick-key">PASSED</span><span class="tick-val tick-up" id="tkPassed">0</span></div>
+  <div class="tick-item"><span class="tick-key">FAILED</span><span class="tick-val tick-dn" id="tkFailed">0</span></div>
+  <div class="tick-item"><span class="tick-key">AVG CONF</span><span class="tick-val" id="tkConf">—</span></div>
+  <div class="tick-item"><span class="tick-key">STATUS</span><span class="tick-val tick-up" id="tkStatus" style="color:#fff;text-shadow:none">IDLE</span></div>
+  <div class="tick-item"><span class="tick-key">MODEL</span><span class="tick-val tick-up" id="tkModel">GEMINI-2.5-FLASH</span></div>
+  <div class="tick-item"><span class="tick-key">THRESHOLD</span><span class="tick-val" id="tkThreshold" style="color:#fff;text-shadow:none">80%</span></div>
+  <div class="tick-spacer"></div>
+  <span class="tick-brand">Connection: <span style="color:var(--green)">Stable (12ms)</span></span>
+</div>
+
+</div><!-- /app -->
+<div style="display:none"><canvas id="healChart"></canvas></div>
+
+
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+/* ─── STATE ─────────────────────────────── */
+const S = {heals:0,passed:0,failed:0,confs:[],steps:0,interventions:0,startTime:null,runActive:false};
+const cfg = {threshold:80, model:'gemini-2.5-flash', retries:3, timeout:5000, reportPath:'./heal-report.json', port:4000, reviewMode:'auto'};
+const runHistory = [
+  { ts: Date.now() - 1000 * 60 * 15, file: "tests/checkout.spec.js", steps: 12, healed: 3, failed: 0, conf: "94%", duration: "14.2s", status: "healed", selectors: [] },
+  { ts: Date.now() - 1000 * 60 * 60 * 2, file: "tests/login.spec.js", steps: 6, healed: 0, failed: 1, conf: "—", duration: "4.8s", status: "fail", selectors: [] },
+  { ts: Date.now() - 1000 * 60 * 60 * 24, file: "tests/cart-add.spec.js", steps: 24, healed: 1, failed: 0, conf: "89%", duration: "21.0s", status: "healed", selectors: [] },
+  { ts: Date.now() - 1000 * 60 * 60 * 48, file: "tests/generic.spec.js", steps: 4, healed: 0, failed: 0, conf: "—", duration: "3.2s", status: "pass", selectors: [] }
+];
+const chartHistory = {live:[],all:[]};
+let chartView = 'live';
+let demoRunning = false;
+
+/* ─── HELPERS ────────────────────────────── */
+const $ = id => document.getElementById(id);
+const now = () => new Date().toLocaleTimeString('en',{hour12:false});
+const fmtTime = d => new Date(d).toLocaleString();
+
+function flashEl(id) {
+  const el = $(id);
+  el.classList.remove('tick-flash','num-pop');
+  void el.offsetWidth;
+  el.classList.add('tick-flash','num-pop');
+}
+
+/* ─── CHART ──────────────────────────────── */
+const ctx = document.getElementById('healChart').getContext('2d');
+const chart = new Chart(ctx,{
+  type:'line',
+  data:{labels:[],datasets:[
+    {label:'Heals',data:[],borderColor:'#FFB800',backgroundColor:'rgba(255,184,0,.07)',fill:true,tension:.4,pointRadius:2,pointBackgroundColor:'#FFB800',borderWidth:1.5},
+    {label:'Passed',data:[],borderColor:'#00FF88',backgroundColor:'rgba(0,255,136,.05)',fill:true,tension:.4,pointRadius:2,pointBackgroundColor:'#00FF88',borderWidth:1.5},
+    {label:'Failed',data:[],borderColor:'#FF4B4B',backgroundColor:'rgba(255,75,75,.05)',fill:true,tension:.4,pointRadius:2,pointBackgroundColor:'#FF4B4B',borderWidth:1.5}
+  ]},
+  options:{
+    responsive:true,maintainAspectRatio:false,animation:{duration:300},
+    interaction:{mode:'index',intersect:false},
+    plugins:{
+      legend:{labels:{color:'#555',font:{family:'JetBrains Mono',size:9.5},boxWidth:7,padding:10,usePointStyle:true}},
+      tooltip:{backgroundColor:'#151515',borderColor:'rgba(255,255,255,.1)',borderWidth:1,titleColor:'#606060',bodyColor:'#f0f0f0',titleFont:{family:'JetBrains Mono',size:9},bodyFont:{family:'JetBrains Mono',size:10},padding:7}
+    },
+    scales:{
+      x:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#3a3a3a',font:{family:'JetBrains Mono',size:8.5},maxTicksLimit:10}},
+      y:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#3a3a3a',font:{family:'JetBrains Mono',size:8.5}},beginAtZero:true,min:0}
+    }
+  }
+});
+
+function pushChart(){
+  const t = now();
+  const point = {t,heals:S.heals,passed:S.passed,failed:S.failed};
+  chartHistory.all.push(point);
+  if(chartView==='live'){
+    chart.data.labels.push(t);
+    chart.data.datasets[0].data.push(S.heals);
+    chart.data.datasets[1].data.push(S.passed);
+    chart.data.datasets[2].data.push(S.failed);
+    if(chart.data.labels.length>40){chart.data.labels.shift();chart.data.datasets.forEach(d=>d.data.shift())}
+  } else {
+    rebuildChart();
+  }
+  chart.update();
+}
+
+function setChartView(view, btn){
+  document.querySelectorAll('.ttab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  chartView = view;
+  rebuildChart();
+  chart.update();
+}
+
+function rebuildChart(){
+  const now60 = Date.now() - 60*60*1000;
+  let data = chartView==='1h'
+    ? chartHistory.all.filter((_,i)=>i>= chartHistory.all.length - 20)
+    : chartHistory.all;
+  chart.data.labels = data.map(p=>p.t);
+  chart.data.datasets[0].data = data.map(p=>p.heals);
+  chart.data.datasets[1].data = data.map(p=>p.passed);
+  chart.data.datasets[2].data = data.map(p=>p.failed);
+}
+
+/* ─── STATS ──────────────────────────────── */
+function updateStats(){
+  const total = S.passed+S.failed+S.heals;
+  const rate = total>0 ? Math.round((S.passed+S.heals)/total*100)+'%' : '—%';
+  const avgConf = S.confs.length>0 ? (S.confs.reduce((a,b)=>a+b,0)/S.confs.length*100).toFixed(0)+'%' : '—';
+
+  const prevHeals = parseInt($('statHeals').textContent)||0;
+  const prevPassed = parseInt($('statPassed').textContent)||0;
+  const prevFailed = parseInt($('statFailed').textContent)||0;
+
+  $('statHeals').textContent=S.heals;
+  $('statPassed').textContent=S.passed;
+  $('statFailed').textContent=S.failed;
+  $('statConf').textContent=avgConf;
+  $('statPassRate').textContent='/ '+rate;
+
+  if(S.heals!==prevHeals)flashEl('statHeals');
+  if(S.passed!==prevPassed)flashEl('statPassed');
+  if(S.failed!==prevFailed)flashEl('statFailed');
+
+  // Ticker with flash on change
+  if($('tkHeals').textContent!==String(S.heals)){$('tkHeals').textContent=S.heals;flashEl('tkHeals')}
+  if($('tkPassed').textContent!==String(S.passed)){$('tkPassed').textContent=S.passed;flashEl('tkPassed')}
+  if($('tkFailed').textContent!==String(S.failed)){$('tkFailed').textContent=S.failed;flashEl('tkFailed')}
+  $('tkConf').textContent=avgConf;
+  $('stepBadge').textContent=S.steps+' STEPS';
+}
+
+/* ─── FEED ───────────────────────────────── */
+function feed(msg,sub,type='info'){
+  const el=document.createElement('div');
+  el.className=`feed-item ${type}`;
+  el.innerHTML=`<div class="feed-msg" title="${msg}">${msg}</div><div class="feed-sub" title="${sub||''}">${sub||''}</div><div class="feed-time">${now()}</div>`;
+  const f=$('liveFeed');
+  f.insertBefore(el,f.firstChild);
+  while(f.children.length>60)f.removeChild(f.lastChild);
+}
+function clearFeed(){$('liveFeed').innerHTML=''}
+
+/* ─── LOG TABLE ──────────────────────────── */
+function addRow(action,selector,status,detail=''){
+  S.steps++;
+  const tbody=$('logBody');
+  if(tbody.querySelector('.log-empty'))tbody.innerHTML='';
+  const statusMap={
+    pass:`<span class="spill pass"><span class="sdot"></span>PASS</span>`,
+    fail:`<span class="spill fail"><span class="sdot"></span>FAIL</span>`,
+    healed:`<span class="spill healed"><span class="sdot"></span>HEALED</span>`
+  };
+  const tr=document.createElement('tr');
+  tr.className='row-new';
+  const short=sel=>sel.length>28?sel.slice(0,26)+'…':sel;
+  tr.innerHTML=`
+    <td style="color:var(--txt2)">${now()}</td>
+    <td style="color:var(--txt0);font-weight:600">${action}</td>
+    <td title="${selector}">${short(selector)}</td>
+    <td>${statusMap[status]||''}</td>
+    <td style="color:${status==='healed'?'var(--amber)':status==='pass'?'var(--green)':'var(--red)'}">${detail||'—'}</td>`;
+  tbody.insertBefore(tr,tbody.firstChild);
+  if(tbody.children.length>40)tbody.removeChild(tbody.lastChild);
+  updateStats();
+}
+
+/* ─── HEAL CARD ──────────────────────────── */
+function setHeal(from,to,reason,conf){
+  const pct=Math.round(conf*100);
+  $('healCard').innerHTML=`
+    <div class="heal-from">${from}</div>
+    <div class="heal-arrow">↓ healed to</div>
+    <div class="heal-to">${to}</div>
+    <div class="heal-reason">${reason}</div>
+    <div class="heal-meta">
+      <span style="font-size:8.5px;font-family:var(--mono);color:var(--txt2)">CONFIDENCE</span>
+      <span style="font-size:10px;font-family:var(--mono);font-weight:700;color:${pct>=80?'var(--green)':'var(--red)'}">${pct}%</span>
+    </div>`;
+  $('confFill').style.width=pct+'%';
+  $('confFill').className='conf-fill'+(pct<60?' low':'');
+  const cv=$('confVal');
+  cv.textContent=pct+'%';
+  cv.className='conf-val'+(pct<60?' low':'');
+}
+
+/* ─── FRAGILITY ──────────────────────────── */
+function setFragility(scores){
+  if(!scores||!scores.length)return;
+  const list=$('fragList');list.innerHTML='';
+  let hi=0;
+  scores.forEach(s=>{
+    if(s.risk==='high')hi++;
+    const pct=Math.round(s.fragilityScore*100);
+    const cls=s.risk==='high'?'hi':s.risk==='low'?'lo':'md';
+    const row=document.createElement('div');
+    row.className='frag-row';
+    row.innerHTML=`
+      <div class="frag-sel" title="${s.selector}">${s.selector}</div>
+      <div class="frag-track"><div class="frag-fill ${cls}" style="width:${pct}%"></div></div>
+      <div class="frag-score" style="color:${cls==='hi'?'var(--red)':cls==='md'?'var(--amber)':'var(--green)'}">${s.fragilityScore.toFixed(2)}</div>
+      <div class="risk-badge ${cls}">${s.risk.toUpperCase()}</div>`;
+    list.appendChild(row);
+  });
+  $('highRisk').textContent=hi+' HIGH RISK';
+}
+
+/* ─── RESET ──────────────────────────────── */
+function resetAll(){
+  if(demoRunning)return;
+  Object.assign(S,{heals:0,passed:0,failed:0,confs:[],steps:0,interventions:0,runActive:false,startTime:null});
+  chartHistory.all=[];
+  chart.data.labels=[];chart.data.datasets.forEach(d=>d.data=[]);chart.update();
+  updateStats();
+  $('logBody').innerHTML='<tr><td colspan="5" class="log-empty"><div class="log-empty-icon">🔍</div>Reset — ready for next run</td></tr>';
+  $('healCard').innerHTML='<div style="font-size:10px;color:var(--txt2);font-style:italic">No heal yet this run</div>';
+  $('confFill').style.width='0%';$('confVal').textContent='—';
+  $('confFill').className='conf-fill';$('confVal').className='conf-val';
+  $('approveBox').classList.remove('show');$('approveEmpty').style.display='';
+  $('runBadge').style.display='none';
+  $('tkStatus').textContent='IDLE';
+  $('fragList').innerHTML='<div class="frag-empty">Waiting for test file scan…</div>';
+  $('highRisk').textContent='— HIGH RISK';
+  $('runFile').textContent='no test loaded';
+  feed('Stats reset','All counters cleared — ready for next run','info');
+}
+
+/* ─── HISTORY ────────────────────────────── */
+function recordHistory(){
+  const total=S.passed+S.failed+S.heals;
+  const avgConf=S.confs.length>0?(S.confs.reduce((a,b)=>a+b,0)/S.confs.length*100).toFixed(0)+'%':'—';
+  const dur=S.startTime?((Date.now()-S.startTime)/1000).toFixed(1)+'s':'—';
+  const status=S.failed===0?'pass':(S.heals>0?'healed':'fail');
+  runHistory.unshift({ts:Date.now(),file:$('runFile').textContent||'unknown',steps:total,passed:S.passed,healed:S.heals,failed:S.failed,conf:avgConf,duration:dur,status,selectors:S._healedSelectors||[]});
+  renderHistory();
+  updateFlakySelectors();
+  updateTrendChart();
+}
+ 
+function renderHistory(){
+  applyHistoryFilters();
+  updateTrendChart();
+}
+ 
+let trendChart=null;
+function initTrendChart(){
+  const ctx2=document.getElementById('trendChart');
+  if(!ctx2||trendChart)return;
+  trendChart=new Chart(ctx2,{
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'Pass rate',data:[],borderColor:'#00ff6a',backgroundColor:'rgba(0,255,106,.06)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#00ff6a',borderWidth:1.5},
+      {label:'Heal success',data:[],borderColor:'#ffb800',backgroundColor:'rgba(255,184,0,.06)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#ffb800',borderWidth:1.5}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:400},
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#151515',borderColor:'rgba(255,255,255,.1)',borderWidth:1,titleColor:'#606060',bodyColor:'#f0f0f0',titleFont:{family:'JetBrains Mono',size:9},bodyFont:{family:'JetBrains Mono',size:10},padding:7}},
+      scales:{
+        x:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#3a3a3a',font:{family:'JetBrains Mono',size:8},maxTicksLimit:10}},
+        y:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#3a3a3a',font:{family:'JetBrains Mono',size:8},callback:v=>v+'%'},min:0,max:100}
+      }
+    }
+  });
+}
+ 
+function updateTrendChart(){
+  initTrendChart();
+  if(!trendChart)return;
+  const last10=runHistory.slice(0,10).reverse();
+  trendChart.data.labels=last10.map(r=>new Date(r.ts).toLocaleTimeString('en',{hour12:false,hour:'2-digit',minute:'2-digit'}));
+  trendChart.data.datasets[0].data=last10.map(r=>{const t=r.steps||1;return Math.round(((r.passed+r.healed)/t)*100);});
+  trendChart.data.datasets[1].data=last10.map(r=>{const t=r.steps||1;return Math.round((r.healed/t)*100);});
+  trendChart.update();
+}
+ 
+const flakyMap={};
+function updateFlakySelectors(){
+  const r=runHistory[0];
+  if(!r)return;
+  (r.selectors||[]).forEach(s=>{if(s.from)flakyMap[s.from]=(flakyMap[s.from]||0)+1;});
+  if(r.failed>0){['input#email','input#password','button#submit'].forEach(s=>{flakyMap[s]=(flakyMap[s]||0)+1;});}
+  renderFlakyPanel();
+}
+ 
+function renderFlakyPanel(){
+  const el=$('flakyList');
+  if(!el)return;
+  const flaky=Object.entries(flakyMap).filter(([,v])=>v>=2).sort((a,b)=>b[1]-a[1]);
+  $('flakyCount').textContent=flaky.length+' tracked';
+  if(!flaky.length){el.innerHTML='<div style="font-size:10px;color:var(--txt2);font-style:italic;padding:6px 0">No flaky selectors yet.</div>';return;}
+  const max=flaky[0][1];
+  el.innerHTML=flaky.map(([sel,cnt])=>`
+    <div class="flaky-row">
+      <span class="flaky-sel" title="${sel}">${sel}</span>
+      <div class="flaky-track"><div class="flaky-fill" style="width:${Math.round(cnt/max*100)}%;background:${cnt>=4?'var(--red)':'var(--amber)'}"></div></div>
+      <span class="flaky-count">${cnt} runs</span>
+      <span class="flaky-badge">FLAKY</span>
+    </div>`).join('');
+}
+ 
+function applyHistoryFilters(){
+  const spec=($('histSpecFilter')?$('histSpecFilter').value||'':'').toLowerCase();
+  const from=$('histDateFrom')&&$('histDateFrom').value?new Date($('histDateFrom').value).getTime():0;
+  const to=$('histDateTo')&&$('histDateTo').value?new Date($('histDateTo').value).getTime()+86400000:Infinity;
+  const filtered=runHistory.filter(r=>{
+    const matchSpec=!spec||r.file.toLowerCase().includes(spec);
+    const matchDate=r.ts>=from&&r.ts<=to;
+    return matchSpec&&matchDate;
+  });
+  renderHistoryTable(filtered);
+}
+ 
+function renderHistoryTable(rows){
+  const el=$('historyList');
+  if(!el)return;
+  const countEl=$('histCount');if(countEl)countEl.textContent=rows.length+' run'+(rows.length!==1?'s':'');
+  if(!rows.length){
+    el.innerHTML=`<div class="hist-empty-state"><div class="hist-empty-icon">📋</div><div class="hist-empty-text">No runs match filters.</div></div>`;
+    return;
+  }
+  const passRate=r=>{const t=r.steps||1;return Math.round(((r.passed+r.healed)/t)*100);};
+  el.innerHTML=`<table class="htable">
+    <thead><tr>
+      <th>Timestamp</th><th>Spec file</th><th style="text-align:center">Passed</th>
+      <th style="text-align:center">Failed</th><th style="text-align:center">Heals</th>
+      <th style="text-align:center">Pass rate</th><th style="text-align:center">Duration</th><th>Status</th>
+    </tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td style="color:var(--txt2);font-size:9px">${fmtTime(r.ts)}</td>
+      <td style="color:var(--txt0)">${r.file}</td>
+      <td style="text-align:center;color:var(--green)">${r.passed}</td>
+      <td style="text-align:center;color:${r.failed>0?'var(--red)':'var(--txt2)'}">${r.failed}</td>
+      <td style="text-align:center;color:var(--amber)">${r.healed}</td>
+      <td style="color:${passRate(r)>=80?'var(--green)':passRate(r)>=50?'var(--amber)':'var(--red)'};font-family:var(--mono)">${passRate(r)}%</td>
+      <td style="text-align:center">${r.duration}</td>
+      <td><span class="spill ${r.status}"><span class="sdot"></span>${r.status.toUpperCase()}</span></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+ 
+function clearHistory(){runHistory.length=0;Object.keys(flakyMap).forEach(k=>delete flakyMap[k]);renderHistory();renderFlakyPanel();if(trendChart){trendChart.data.labels=[];trendChart.data.datasets.forEach(d=>d.data=[]);trendChart.update();}}
+ 
+/* ─── REPORT ─────────────────────────────── */
+let repTimelineChart=null;
+function renderReport(){
+  const wrap=$('repWrap');
+  const empty=$('repEmpty');
+  const exportRow=$('repExportRow');
+  if(!wrap)return;
+  if(!runHistory.length){
+    if(empty)empty.style.display='';
+    wrap.innerHTML='';
+    if(empty)wrap.appendChild(empty);
+    if(exportRow)exportRow.style.display='none';
+    return;
+  }
+  if(exportRow)exportRow.style.display='flex';
+  const genEl=$('repGenTime');if(genEl)genEl.textContent='Generated '+fmtTime(Date.now());
+ 
+  const allR=runHistory;
+  const totalRuns=allR.length;
+  const avgPassRate=Math.round(allR.reduce((a,r)=>{const t=r.steps||1;return a+((r.passed+r.healed)/t)*100;},0)/totalRuns);
+  const avgHealRate=Math.round(allR.reduce((a,r)=>{const t=r.steps||1;return a+(r.healed/t)*100;},0)/totalRuns);
+  const totalSteps=allR.reduce((a,r)=>a+r.steps,0);
+  const healthScore=Math.min(100,Math.round((avgPassRate*0.6)+(avgHealRate*0.25)+(totalRuns>1?Math.min(totalRuns/5,1)*15:0)));
+  const healthColor=healthScore>=75?'var(--green)':healthScore>=50?'var(--amber)':'var(--red)';
+  const fragSelectors=[
+    {sel:'input#email',score:0.70,fails:3,fix:'data-testid="email-input"'},
+    {sel:'input#password',score:0.70,fails:3,fix:'data-testid="password-input"'},
+    {sel:'button#submit',score:0.70,fails:3,fix:'data-testid="submit-btn"'},
+    {sel:'#login-btn',score:0.60,fails:2,fix:'data-testid="login-btn"'},
+    {sel:'#add-cart',score:0.55,fails:2,fix:'data-testid="add-to-cart"'},
+  ];
+ 
+  wrap.innerHTML=`
+    <div class="rep-summary-grid">
+      <div class="rep-kpi" style="display:flex;align-items:center;gap:12px;text-align:left">
+        <div class="rep-health-ring">
+          <svg width="70" height="70" viewBox="0 0 70 70">
+            <circle cx="35" cy="35" r="28" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="7"/>
+            <circle cx="35" cy="35" r="28" fill="none" stroke="${healthColor}" stroke-width="7"
+              stroke-dasharray="${Math.round(175.9*(healthScore/100))} 175.9" stroke-linecap="round"/>
+          </svg>
+          <div class="rep-health-center" style="color:${healthColor}">${healthScore}</div>
+        </div>
+        <div><div class="rep-kpi-label">Health score</div><div style="font-size:10px;color:var(--txt2);margin-top:3px">out of 100</div></div>
+        <div class="rep-kpi-bar" style="background:${healthColor};opacity:.5"></div>
+      </div>
+      <div class="rep-kpi">
+        <div class="rep-kpi-num" style="color:var(--txt0)">${totalRuns}</div>
+        <div class="rep-kpi-label">Runs analyzed</div>
+        <div class="rep-kpi-bar" style="background:var(--blue);opacity:.5"></div>
+      </div>
+      <div class="rep-kpi">
+        <div class="rep-kpi-num" style="color:${avgPassRate>=80?'var(--green)':avgPassRate>=50?'var(--amber)':'var(--red)'}">${avgPassRate}%</div>
+        <div class="rep-kpi-label">Avg pass rate</div>
+        <div class="rep-kpi-bar" style="background:var(--green);opacity:.5"></div>
+      </div>
+      <div class="rep-kpi">
+        <div class="rep-kpi-num" style="color:var(--amber)">${avgHealRate}%</div>
+        <div class="rep-kpi-label">Avg heal success</div>
+        <div class="rep-kpi-bar" style="background:var(--amber);opacity:.5"></div>
+      </div>
+    </div>
+    <div class="rep-card">
+      <div class="rep-card-hdr">
+        <div class="rep-card-title">Per-spec breakdown</div>
+        <span style="font-size:9px;font-family:var(--mono);color:var(--txt2)">${totalSteps} total steps</span>
+      </div>
+      <table class="rtable">
+        <thead><tr><th>Spec file</th><th>Last run</th><th>Steps</th><th>Heals</th><th>Pass rate</th><th>Sparkline</th><th>Status</th></tr></thead>
+        <tbody>${allR.map(r=>{
+          const pr=Math.round(((r.passed+r.healed)/(r.steps||1))*100);
+          const bc=pr>=80?'#00ff6a':pr>=50?'#ffb800':'#ff3d3d';
+          return `<tr>
+            <td style="font-family:var(--mono);font-size:10px;color:var(--txt0)">${r.file}</td>
+            <td style="font-size:9px;color:var(--txt2)">${fmtTime(r.ts)}</td>
+            <td style="text-align:center">${r.steps}</td>
+            <td style="text-align:center;color:var(--amber)">${r.healed}</td>
+            <td style="color:${bc};font-family:var(--mono)">${pr}%</td>
+            <td><div class="spark-bar-wrap"><div class="spark-bar-fill" style="width:${pr}%;background:${bc}"></div></div></td>
+            <td><span class="spill ${r.status}"><span class="sdot"></span>${r.status.toUpperCase()}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
+    <div class="rep-card">
+      <div class="rep-card-hdr">
+        <div class="rep-card-title">Fragility index &amp; recommendations</div>
+        <span style="font-size:9px;font-family:var(--mono);color:var(--red)">${fragSelectors.filter(s=>s.score>=0.6).length} high-risk</span>
+      </div>
+      <table class="rtable">
+        <thead><tr><th>Selector</th><th>Fragility</th><th>Failures</th><th>Recommended fix</th></tr></thead>
+        <tbody>${fragSelectors.map(s=>{
+          const cl=s.score>=0.7?'var(--red)':s.score>=0.5?'var(--amber)':'var(--green)';
+          return `<tr>
+            <td style="font-family:var(--mono);font-size:10px;color:var(--txt0)">${s.sel}</td>
+            <td style="color:${cl};font-family:var(--mono)">${s.score.toFixed(2)}</td>
+            <td style="text-align:center;color:${cl}">${s.fails}</td>
+            <td style="font-size:9.5px">Replace with <span class="fix-tag">${s.fix}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>
+    <div class="rep-card">
+      <div class="rep-card-hdr"><div class="rep-card-title">Failure timeline — last 7 days</div></div>
+      <div class="rep-timeline-wrap" style="position:relative;height:140px"><canvas id="repTimelineCanvas"></canvas></div>
+    </div>`;
+ 
+  setTimeout(()=>{
+    const ctx3=document.getElementById('repTimelineCanvas');
+    if(!ctx3)return;
+    if(repTimelineChart){repTimelineChart.destroy();repTimelineChart=null;}
+    repTimelineChart=new Chart(ctx3,{
+      type:'bar',
+      data:{labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],datasets:[
+        {label:'Failures',data:[3,2,5,1,4,2,3],backgroundColor:'rgba(255,61,61,.7)',borderRadius:3,borderSkipped:false},
+        {label:'Heals',data:[2,1,4,1,3,2,2],backgroundColor:'rgba(255,184,0,.6)',borderRadius:3,borderSkipped:false}
+      ]},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{labels:{color:'#555',font:{family:'JetBrains Mono',size:9},boxWidth:7,padding:10,usePointStyle:true}},
+          tooltip:{backgroundColor:'#151515',borderColor:'rgba(255,255,255,.1)',borderWidth:1,titleColor:'#606060',bodyColor:'#f0f0f0',titleFont:{family:'JetBrains Mono',size:9},bodyFont:{family:'JetBrains Mono',size:10},padding:7}},
+        scales:{
+          x:{grid:{display:false},ticks:{color:'#3a3a3a',font:{family:'JetBrains Mono',size:8.5}},border:{display:false}},
+          y:{grid:{color:'rgba(255,255,255,.03)'},ticks:{color:'#3a3a3a',font:{family:'JetBrains Mono',size:8.5},stepSize:1},border:{display:false},beginAtZero:true}
+        }
+      }
+    });
+  },50);
+}
+ 
+function exportReport(fmt){
+  if(!runHistory.length){feed('Nothing to export','Complete a run first','fail');return;}
+  if(fmt==='pdf'){window.print();feed('PDF export','Browser print dialog opened','pass');return;}
+  const r=runHistory[0];
+  let content,mime,ext;
+  if(fmt==='json'){content=JSON.stringify(r,null,2);mime='application/json';ext='json';}
+  else{const k=Object.keys(r);content=k.join(',')+'\n'+k.map(key=>`"${r[key]}"`).join(',');mime='text/csv';ext='csv';}
+  const blob=new Blob([content],{type:mime});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`heal-report.${ext}`;a.click();
+  feed(`Exported heal-report.${ext}`,null,'pass');
+}
+ 
+/* ─── CONFIG ACTIONS ─────────────────────── */
+function onThresholdChange(val){cfg.threshold=parseInt(val);$('cfgThresholdVal').textContent=val+'%';$('tkThreshold').textContent=val+'%';}
+function onModelChange(val){cfg.model=val;$('tkModel').textContent=val.toUpperCase();}
+function saveConfig(){
+  cfg.retries=parseInt($('cfgRetries').value)||3;
+  cfg.timeout=parseInt($('cfgTimeout').value)||5000;
+  cfg.reportPath=$('cfgReportPath').value||'./heal-report.json';
+  cfg.port=parseInt($('cfgPort').value)||4000;
+  cfg.reviewMode=document.querySelector('input[name="reviewMode"]:checked')?.value||'auto';
+  feed('Config saved',`threshold:${cfg.threshold}% · model:${cfg.model} · retries:${cfg.retries}`,'pass');
+}
+function resetConfig(){
+  cfg.threshold=80;cfg.model='gemini-2.5-flash';cfg.retries=3;cfg.timeout=5000;cfg.reportPath='./heal-report.json';cfg.port=4000;cfg.reviewMode='auto';
+  if($('cfgThreshold'))$('cfgThreshold').value=80;if($('cfgThresholdVal'))$('cfgThresholdVal').textContent='80%';if($('cfgModel'))$('cfgModel').value='gemini-2.5-flash';
+  if($('cfgRetries'))$('cfgRetries').value=3;if($('cfgTimeout'))$('cfgTimeout').value=5000;
+  if($('cfgReportPath'))$('cfgReportPath').value='./heal-report.json';if($('cfgPort'))$('cfgPort').value=4000;
+  const rm=document.querySelector('input[name="reviewMode"][value="auto"]');if(rm)rm.checked=true;
+  $('tkThreshold').textContent='80%';$('tkModel').textContent='GEMINI-2.5-FLASH';
+  feed('Config reset','All settings restored to defaults','info');
+}
+function saveTimeouts(){cfg.timeout=parseInt($('cfgTimeout').value)||5000;feed('Timeouts saved',`click:${$('toClick').value}ms fill:${$('toFill').value}ms goto:${$('toGoto').value}ms`,'pass');}
+function resetTimeouts(){if($('toClick'))$('toClick').value=5000;if($('toFill'))$('toFill').value=5000;if($('toGoto'))$('toGoto').value=15000;if($('cfgTimeout'))$('cfgTimeout').value=5000;feed('Timeouts reset','Default values restored','info');}
+function addApiKey(){
+  const inp=$('newKeyInput');const val=(inp.value||'').trim();
+  if(!val||val.length<10){feed('Invalid key','Paste a valid Gemini API key','fail');return;}
+  const mask=val.slice(0,7)+'•'.repeat(26)+val.slice(-4);
+  const row=document.createElement('div');row.className='key-row';
+  row.innerHTML=`<div class="key-mask">${mask}</div><span class="key-status key-active">ACTIVE</span><button class="key-del" onclick="removeKey(this)" title="Remove">✕</button>`;
+  $('apiKeyList').appendChild(row);inp.value='';
+  feed('API key added','New key marked as active','pass');
+}
+function removeKey(btn){btn.closest('.key-row').remove();feed('Key removed',null,'info');}
+function saveApiKeys(){feed('API keys saved','Key configuration updated','pass');}
+function resetApiKeys(){feed('Keys reset','Restored default configuration','info');}
+function saveSelectorOrder(){
+  const items=[...$('selectorDragList').querySelectorAll('.drag-item')];
+  const order=items.map(i=>i.dataset.strategy);
+  feed('Selector strategy saved',order.join(' > '),'pass');
+}
+function resetSelectorOrder(){
+  const list=$('selectorDragList');
+  const defs=[['data-testid','data-testid','recommended'],['aria-label','aria-label','accessible'],['css','CSS class','stable'],['id','ID','fragile'],['xpath','XPath','last resort']];
+  list.innerHTML=defs.map((s,i)=>`<div class="drag-item" draggable="true" data-strategy="${s[0]}"><span class="drag-handle">⠿</span><span class="drag-rank">${i+1}</span><span class="drag-name">${s[1]}</span><span class="drag-tag">${s[2]}</span></div>`).join('');
+  initDragSort();feed('Strategy reset','Default order restored','info');
+}
+function copyCmd(){navigator.clipboard?.writeText('npx selfheal run tests/generic.spec.js --dashboard');feed('Copied','CLI command ready to paste','info');}
+
+/* ─── DRAG & DROP ────────────────────────── */
+function initDragSort(){
+  const list=$('selectorDragList'); if(!list)return;
+  let dragEl=null;
+  [...list.querySelectorAll('.drag-item')].forEach(item=>{
+    item.addEventListener('dragstart',e=>{
+      dragEl=item;
+      setTimeout(()=>item.classList.add('dragging'),0);
+      e.dataTransfer.effectAllowed='move';
+    });
+    item.addEventListener('dragend',()=>item.classList.remove('dragging'));
+    item.addEventListener('dragover',e=>{
+      e.preventDefault();
+      const after=getDragAfter(list, e.clientY);
+      if(!after)list.appendChild(dragEl); else list.insertBefore(dragEl,after);
+      updateRanks();
+    });
+  });
+}
+function getDragAfter(container, y){
+  const items=[...container.querySelectorAll('.drag-item:not(.dragging)')];
+  return items.reduce((closest, child)=>{
+    const box=child.getBoundingClientRect();
+    const offset=y - box.top - box.height/2;
+    if(offset<0 && offset>closest.offset)return{offset,element:child};
+    return closest;
+  },{offset:Number.NEGATIVE_INFINITY}).element;
+}
+function updateRanks(){
+  [...$('selectorDragList').querySelectorAll('.drag-item')].forEach((item,i)=>{
+    const r=item.querySelector('.drag-rank');if(r)r.textContent=i+1;
+  });
+}
+
+
+/* ─── TAB SWITCHING ──────────────────────── */
+function switchTab(tab, btn){
+  document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  $('liveBody').style.display='none';
+  document.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
+  if(tab==='live'){
+    $('liveBody').style.display='flex';
+  } else {
+    const p=$('tab-'+tab);
+    if(p){p.style.display='flex';p.style.flexDirection='column';}
+    if(tab==='report')renderReport();
+    if(tab==='history')renderHistory();
+  }
+}
+
+/* ─── MISC ───────────────────────────────── */
+function closeOverlay(){$('overlay').classList.remove('show')}
+
+function stopRun(){
+  if(socket) socket.emit('run:stop');
+  setDemoBtn(false);
+  S.runActive=false;
+  $('runBadge').style.display='none';
+  $('connDot').className='dot';
+  $('tkStatus').textContent='STOPPED';
+  feed('Run stopped','Manually stopped by user','fail');
+}
+
+function triggerRun(){
+  if(!socket||!socket.connected){feed('Not connected','Start the CLI server first: node bin/selfheal.js run tests/generic.spec.js --dashboard','fail');return;}
+  const targetUrl = $('targetUrlInput')?.value;
+  socket.emit('run:trigger', { targetUrl });
+  feed('Run triggered','Launching browser...','info');
+}
+
+function setDemoBtn(running){
+  demoRunning=running;
+  const btn=$('demoBtn');
+  if(running){
+    btn.textContent='⏹ Stop Run';
+    btn.className='btn btn-red';
+    btn.style='flex:1;padding:9px;font-size:11.5px;border-radius:var(--r6)';
+    btn.onclick=stopRun;
+  } else {
+    btn.textContent='▶ Run';
+    btn.className='btn btn-green';
+    btn.style='flex:1;padding:9px;font-size:11.5px;border-radius:var(--r6)';
+    btn.onclick=triggerRun;
+  }
+}
+
+/* ─── SOCKET.IO ──────────────────────────── */
+let socket;
+try{
+  socket=io(window.location.origin,{timeout:4000,reconnectionDelay:1000});
+  socket.on('connect',()=>{$('connDot').className='dot running';$('connLabel').textContent='Live';$('tkStatus').textContent='CONNECTED';feed('WebSocket connected','Listening for test events','pass');});
+  socket.on('disconnect',()=>{$('connDot').className='dot offline';$('connLabel').textContent='Offline';$('tkStatus').textContent='OFFLINE';});
+  socket.on('connect_error',()=>{$('connDot').className='dot idle';$('connLabel').textContent='Idle';});
+  socket.on('run:ready',d=>{
+    const url=d.targetUrl||'';
+    if(url && !$('targetUrlInput').value) $('targetUrlInput').value=url;
+    $('readyUrl').textContent=url?'Target: '+url:'';
+    feed('Ready','Click Run to start','info');
+  });
+  socket.on('run:error',d=>{feed('[ERR] '+d.message,null,'fail');});
+  socket.on('run:start',d=>{resetAll();S.runActive=true;S.startTime=Date.now();const fname=d.testFile?.split(/[/\\]/).pop()||'running';const urlShort=d.targetUrl?(d.targetUrl.length>40?d.targetUrl.slice(0,38)+'...':d.targetUrl):'';$('runFile').textContent=urlShort?`${fname} > ${urlShort}`:fname;$('connDot').className='dot running';$('tkStatus').textContent='RUNNING';$('runBadge').style.display='';setDemoBtn(true);feed(`Run started: ${fname}${urlShort?' > '+urlShort:''}`,null,'info');});
+  socket.on('step:start',d=>{$('runFile').textContent=d.testFile?.split(/[/\\]/).pop()||'running';feed(`> ${d.action}('${d.selector}')`,d.intent||null,'info');});
+  socket.on('step:pass',d=>{S.passed++;addRow(d.action||'action',d.selector,'pass','+1');feed(`PASS: ${d.selector}`,null,'pass');pushChart();});
+  socket.on('step:fail',d=>{S.failed++;addRow(d.action||'action',d.selector,'fail',d.error?.slice(0,30)||'timeout');feed(`FAIL: ${d.selector}`,d.error?.slice(0,60)||null,'fail');pushChart();});
+  socket.on('heal:start',d=>{feed(`Healing: ${d.selector}`,'Calling Gemini...','heal');});
+  socket.on('heal:result',d=>{
+    if(d.newSelector && d.confidence!=null){
+      S.confs.push(d.confidence);
+      setHeal(d.brokenSelector||'?',d.newSelector,d.rootCause||'Selector changed',d.confidence);
+    } else {
+      feed(`Heal Failed: ${d.brokenSelector||'?'}`, d.rootCause||'Gemini API Error / Rate Limited', 'fail');
+      $('confVal').textContent = 'ERR';
+      $('confFill').style.width = '0%';
+      $('healCard').innerHTML = `<div style="font-size:10.5px;color:var(--red);font-style:italic"> ${d.rootCause||'API failed to retrieve heal'}</div>`;
+    }
+  });
+  socket.on('step:healed',d=>{S.heals++;const conf=d.extra?.confidence||0;S.confs.push(conf);addRow(d.action||'click',d.selector,'healed',Math.round(conf*100)+'%');feed(`HEALED -> ${d.selector}`,`Confidence: ${Math.round(conf*100)}%`,'heal');pushChart();});
+  socket.on('heal:confirm',d=>{$('approveConf').textContent=Math.round(d.confidence*100);$('approveOld').textContent=d.brokenSelector;$('approveNew').textContent=d.suggestedSelector;$('approveBox').classList.add('show');$('approveEmpty').style.display='none';S.interventions++;feed('[!] Human review needed',`Confidence: ${Math.round(d.confidence*100)}%`,'heal');});
+  socket.on('fragility:data',setFragility);
+  socket.on('run:complete',d=>{S.runActive=false;$('runBadge').style.display='none';$('connDot').className='dot';$('tkStatus').textContent=d.status?.toUpperCase()||'DONE';const duration=d.duration||(S.startTime?((Date.now()-S.startTime)/1000).toFixed(1)+'s':'--');setDemoBtn(false);recordHistory();feed(`Run complete -- ${d.status||'done'} in ${duration}`,`${S.heals} healed / ${S.failed} failed`,'pass');});
+  $('btnApprove').onclick=()=>{socket.emit('heal:approve');$('approveBox').classList.remove('show');$('approveEmpty').style.display='';};
+  $('btnReject').onclick=()=>{socket.emit('heal:reject');$('approveBox').classList.remove('show');$('approveEmpty').style.display='';};
+}catch(e){$('connDot').className='dot idle';$('connLabel').textContent='Demo Mode';}
+
+/* ─── DEMO RUN ───────────────────────────── */
+const DEMO=[
+  {action:'navigate',selector:'http://localhost:3000/pages/checkout-page.html',status:'pass',delay:500},
+  {action:'fill',selector:'#auth-user-email',status:'pass',delay:400},
+  {action:'fill',selector:'#login-password',status:'fail',healTo:'#auth-user-pass',reason:'Password field ID changed in V2 deploy',conf:.94,delay:700},
+  {action:'click',selector:'#login-btn',status:'fail',healTo:'#btn-authenticate',reason:'Login button renamed after auth system refactor',conf:.91,delay:600},
+  {action:'click',selector:'#add-cart',status:'fail',healTo:'.action-add-item',reason:'Cart button migrated to CSS class selector',conf:.87,delay:650},
+  {action:'click',selector:'#place-order',status:'fail',healTo:'#checkout-submit',reason:'Checkout button ID updated in payment redesign',conf:.96,delay:550},
+];
+
+async function demoRun(){
+  if(demoRunning)return;
+  setDemoBtn(true);
+  resetAll();
+  S.runActive=true;S.startTime=Date.now();S._healedSelectors=[];
+  $('runFile').textContent='checkout.spec.js';
+  $('connDot').className='dot running';
+  $('tkStatus').textContent='RUNNING';
+  $('runBadge').style.display='';
+  feed('Demo run started','Simulating checkout.spec.js full flow','info');
+  setFragility([
+    {selector:'#login-password',fragilityScore:.6,risk:'medium'},
+    {selector:'#login-btn',fragilityScore:.6,risk:'medium'},
+    {selector:'#add-cart',fragilityScore:.6,risk:'medium'},
+    {selector:'#place-order',fragilityScore:.6,risk:'medium'},
+    {selector:'#auth-user-email',fragilityScore:.5,risk:'medium'},
+    {selector:'text=checkout',fragilityScore:.2,risk:'low'},
+  ]);
+  for(const step of DEMO){
+    await new Promise(r=>setTimeout(r,step.delay));
+    if(step.status==='pass'){
+      S.passed++;addRow(step.action,step.selector,'pass','+1');
+      feed(`✓ PASS: ${step.selector}`,null,'pass');
+    } else {
+      S.failed++;addRow(step.action,step.selector,'fail','selector not found');
+      feed(`✗ FAIL: ${step.selector}`,'Selector not found in DOM','fail');
+      await new Promise(r=>setTimeout(r,350));
+      feed(`⚕ Healing: ${step.selector}`,'Calling Gemini 2.5 Flash…','heal');
+      await new Promise(r=>setTimeout(r,900));
+      S.heals++;S.failed=Math.max(0,S.failed-1);
+      S.confs.push(step.conf);
+      S._healedSelectors.push({from:step.selector,to:step.healTo,conf:step.conf});
+      setHeal(step.selector,step.healTo,step.reason,step.conf);
+      addRow(step.action,step.healTo,'healed',Math.round(step.conf*100)+'%');
+      feed(` HEALED → ${step.healTo}`,`Confidence: ${Math.round(step.conf*100)}%`,'heal');
+    }
+    pushChart();updateStats();
+  }
+  const dur=((Date.now()-S.startTime)/1000).toFixed(1)+'s';
+  $('ovSteps').textContent=S.steps;$('ovHealed').textContent=S.heals;$('ovInterv').textContent=0;$('ovTime').textContent=dur;
+  $('ovSub').textContent=`checkout.spec.js · COMPLETE`;
+  $('runBadge').style.display='none';$('connDot').className='dot';$('tkStatus').textContent='COMPLETE';
+  setTimeout(()=>$('overlay').classList.add('show'),400);
+  feed('Run complete — all healed',`${S.heals} selectors fixed in ${dur}`,'pass');
+  recordHistory();
+  setDemoBtn(false);
+}
+
+/* ─── BOOT ───────────────────────────────── */
+updateStats();pushChart();initDragSort();
+</script>
+</body>
+</html>

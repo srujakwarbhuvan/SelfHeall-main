@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>SelfHeal — Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{
+      --bg:#08090d;--s1:#0e1117;--s2:#161b22;--s3:#1c2333;--s4:#242d3d;
+      --b1:rgba(255,255,255,0.06);--b2:rgba(255,255,255,0.10);--b3:rgba(255,255,255,0.15);
+      --t:#e6edf3;--td:#8b949e;--m:#484f58;
+      --g:#3fb950;--gd:rgba(63,185,80,0.12);--gg:rgba(63,185,80,0.3);
+      --r:#f85149;--rd:rgba(248,81,73,0.12);
+      --a:#d29922;--ad:rgba(210,153,34,0.12);
+      --bl:#58a6ff;--bld:rgba(88,166,255,0.12);
+      --p:#bc8cff;--pd:rgba(188,140,255,0.12);
+      --grad:linear-gradient(135deg,#3fb950,#58a6ff,#bc8cff);
+      --r8:8px;--r12:12px;--r16:16px;
+      --sans:'Inter',-apple-system,sans-serif;--mono:'JetBrains Mono',monospace;
+    }
+    html,body{height:100%;background:var(--bg);color:var(--t);font-family:var(--sans);font-size:13px;}
+    button{cursor:pointer;border:none;outline:none;font-family:var(--sans);}
+    input{outline:none;font-family:var(--mono);}
+    ::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:3px;}
+
+    /* NAV */
+    .nav{display:flex;align-items:center;padding:14px 24px;background:var(--s1);border-bottom:1px solid var(--b1);position:sticky;top:0;z-index:50;}
+    .nav::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:var(--grad);opacity:0.4;}
+    .nav-brand{display:flex;align-items:center;gap:10px;flex:1;}
+    .nav-logo{width:32px;height:32px;border-radius:9px;background:var(--grad);display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 20px rgba(63,185,80,0.3);}
+    .nav-name{font-size:15px;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .nav-badge{font-size:8px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--m);background:var(--s3);border:1px solid var(--b1);padding:2px 8px;border-radius:5px;}
+    .nav-right{display:flex;align-items:center;gap:12px;}
+    .nav-status{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--td);font-family:var(--mono);}
+    .nav-dot{width:7px;height:7px;border-radius:50%;background:var(--m);}
+    .nav-dot.live{background:var(--g);box-shadow:0 0 8px var(--gg);animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+    .nav-link{color:var(--td);text-decoration:none;font-size:12px;font-weight:600;padding:6px 14px;border-radius:var(--r8);border:1px solid var(--b2);transition:0.15s;}
+    .nav-link:hover{color:var(--g);border-color:var(--g);background:var(--gd);}
+
+    /* LAYOUT */
+    .layout{display:flex;height:calc(100vh - 60px);}
+    .sidebar{width:260px;background:var(--s1);border-right:1px solid var(--b1);display:flex;flex-direction:column;flex-shrink:0;}
+    .main{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden;}
+
+    /* SIDEBAR TABS */
+    .stab{display:flex;border-bottom:1px solid var(--b1);}
+    .stab-btn{flex:1;padding:10px;font-size:11px;font-weight:600;color:var(--td);background:transparent;text-align:center;transition:0.15s;position:relative;}
+    .stab-btn:hover{color:var(--t);background:var(--s2);}
+    .stab-btn.active{color:var(--g);background:var(--gd);}
+    .stab-btn.active::after{content:'';position:absolute;bottom:0;left:20%;right:20%;height:2px;background:var(--g);}
+    .stab-badge{font-size:9px;background:var(--rd);color:var(--r);padding:0 5px;border-radius:8px;font-weight:700;margin-left:3px;}
+    .spanel{display:none;flex:1;flex-direction:column;overflow:hidden;}
+    .spanel.active{display:flex;}
+
+    /* COMMAND LIST */
+    .cmd-list{flex:1;overflow-y:auto;padding:8px;}
+    .cmd-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--r8);cursor:pointer;transition:0.15s;margin-bottom:2px;}
+    .cmd-row:hover{background:var(--gd);}
+    .cmd-row.running{background:var(--ad);pointer-events:none;}
+    .cmd-ico{font-size:16px;width:24px;text-align:center;}
+    .cmd-body{flex:1;min-width:0;}
+    .cmd-title{font-size:11px;font-weight:700;color:var(--t);}
+    .cmd-sub{font-size:9px;color:var(--m);font-family:var(--mono);}
+    .cmd-input-wrap{padding:8px;border-top:1px solid var(--b1);display:flex;gap:6px;}
+    .cmd-inp{flex:1;padding:7px 10px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r8);color:var(--t);font-size:11px;}
+    .cmd-inp:focus{border-color:var(--g);}
+    .cmd-go{padding:7px 12px;border-radius:var(--r8);font-size:11px;font-weight:700;background:var(--g);color:#000;}
+    .cmd-go:hover{box-shadow:0 0 12px var(--gg);}
+
+    /* ERROR LIST */
+    .err-list{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}
+    .err-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:8px;color:var(--m);font-size:11px;text-align:center;padding:30px;}
+    .err-card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r8);padding:10px;cursor:pointer;transition:0.15s;}
+    .err-card:hover{border-color:var(--b3);background:var(--s3);}
+    .err-card.fix{border-left:3px solid var(--g);}
+    .err-card.nofix{border-left:3px solid var(--r);}
+    .err-cmd{font-family:var(--mono);font-size:9.5px;color:var(--bl);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .err-msg{font-size:10.5px;color:var(--r);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+    .err-meta{display:flex;align-items:center;gap:6px;margin-top:6px;}
+    .badge{display:inline-block;font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:0.04em;text-transform:uppercase;}
+    .badge.g{background:var(--gd);color:var(--g);}.badge.r{background:var(--rd);color:var(--r);}.badge.a{background:var(--ad);color:var(--a);}
+
+    /* MAIN: TERMINAL */
+    .term-area{flex:1;display:flex;flex-direction:column;min-height:0;}
+    .term-bar{display:flex;align-items:center;padding:10px 20px;background:var(--s1);border-bottom:1px solid var(--b1);gap:10px;flex-shrink:0;}
+    .term-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--m);flex:1;}
+    .term-stat{font-size:10px;font-family:var(--mono);color:var(--m);}
+    .term-stat.run{color:var(--a);}
+    .term-stat.ok{color:var(--g);}
+    .term-stat.err{color:var(--r);}
+    .stop-btn{padding:4px 12px;border-radius:5px;font-size:9px;font-weight:700;background:var(--rd);color:var(--r);border:1px solid var(--r);display:none;}
+    .stop-btn.show{display:inline-block;}
+    .stop-btn:hover{background:var(--r);color:#000;}
+    .term-scroll{flex:1;overflow-y:auto;padding:12px 20px;background:#060810;font-family:var(--mono);font-size:11px;line-height:1.7;}
+    .tl{padding:1px 0;}
+    .tl.out{color:var(--td);}
+    .tl.err{color:var(--r);}
+    .tl.info{color:var(--bl);}
+    .tl.ok{color:var(--g);}
+    .tl.warn{color:var(--a);}
+
+    /* MAIN: DETAIL PANEL */
+    .detail-wrap{display:none;flex:1;flex-direction:column;overflow:hidden;border-left:1px solid var(--b1);}
+    .detail-wrap.show{display:flex;}
+    .det-header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--b1);flex-shrink:0;}
+    .det-title{font-size:13px;font-weight:800;}
+    .det-close{width:28px;height:28px;border-radius:6px;background:var(--s3);color:var(--td);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+    .det-close:hover{color:var(--r);background:var(--rd);}
+    .det-body{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px;}
+    .det-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--m);margin-bottom:6px;}
+    .det-code{background:#060810;border:1px solid var(--b2);border-radius:var(--r8);padding:10px;font-family:var(--mono);font-size:10.5px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;word-break:break-all;}
+    .det-code.c-r{color:var(--r);}.det-code.c-g{color:var(--g);}.det-code.c-bl{color:var(--bl);}
+    .det-explain{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r8);padding:10px 12px;font-size:11.5px;line-height:1.7;color:var(--td);}
+    .det-file{display:flex;align-items:center;gap:6px;padding:5px 10px;background:var(--bld);border:1px solid rgba(88,166,255,0.15);border-radius:6px;font-family:var(--mono);font-size:10px;color:var(--bl);cursor:pointer;margin-bottom:3px;}
+    .det-file:hover{background:rgba(88,166,255,0.15);}
+    .det-btn{width:100%;padding:10px;border-radius:var(--r8);font-size:12px;font-weight:700;transition:0.15s;margin-top:4px;}
+    .det-btn.g{background:var(--g);color:#000;}.det-btn.g:hover{box-shadow:0 0 16px var(--gg);}
+    .det-btn.o{background:transparent;color:var(--td);border:1px solid var(--b2);}.det-btn.o:hover{color:var(--t);border-color:var(--b3);}
+
+    /* HISTORY (bottom of main) */
+    .hist-bar{padding:8px 20px;background:var(--s1);border-top:1px solid var(--b1);flex-shrink:0;max-height:180px;overflow-y:auto;}
+    .hist-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--m);margin-bottom:6px;}
+    .hist-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;margin-bottom:2px;font-size:10px;cursor:pointer;transition:0.1s;}
+    .hist-row:hover{background:var(--s2);}
+    .hist-ico{font-size:10px;}
+    .hist-cmd{flex:1;font-family:var(--mono);color:var(--t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .hist-time{font-size:9px;color:var(--m);font-family:var(--mono);}
+
+    @media(max-width:768px){.sidebar{width:200px;}}
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="nav-logo">&#9878;</div>
+    <span class="nav-name">SelfHeal</span>
+    <span class="nav-badge">DASHBOARD</span>
+  </div>
+  <div class="nav-right">
+    <div class="nav-status"><span class="nav-dot" id="wsDot"></span><span id="wsLabel">Connecting...</span></div>
+    <a href="/" class="nav-link">&larr; Home</a>
+  </div>
+</nav>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="stab">
+      <button class="stab-btn active" onclick="sTab('cmds',this)">Commands</button>
+      <button class="stab-btn" onclick="sTab('errs',this)">Errors <span class="stab-badge" id="eBadge" style="display:none">0</span></button>
+    </div>
+
+    <!-- Commands Panel -->
+    <div class="spanel active" id="sp-cmds">
+      <div class="cmd-list" id="cmdList">
+        <div class="cmd-row" onclick="run('npm run dev')"><div class="cmd-ico">&#9654;</div><div class="cmd-body"><div class="cmd-title">npm run dev</div><div class="cmd-sub">Start dev server</div></div></div>
+        <div class="cmd-row" onclick="run('npm run build')"><div class="cmd-ico">&#128230;</div><div class="cmd-body"><div class="cmd-title">npm run build</div><div class="cmd-sub">Build project</div></div></div>
+        <div class="cmd-row" onclick="run('npm test')"><div class="cmd-ico">&#9889;</div><div class="cmd-body"><div class="cmd-title">npm test</div><div class="cmd-sub">Run tests</div></div></div>
+        <div class="cmd-row" onclick="run('npm start')"><div class="cmd-ico">&#128640;</div><div class="cmd-body"><div class="cmd-title">npm start</div><div class="cmd-sub">Start app</div></div></div>
+        <div class="cmd-row" onclick="run('npm install')"><div class="cmd-ico">&#128229;</div><div class="cmd-body"><div class="cmd-title">npm install</div><div class="cmd-sub">Install deps</div></div></div>
+        <div class="cmd-row" onclick="run('npm run lint')"><div class="cmd-ico">&#128269;</div><div class="cmd-body"><div class="cmd-title">npm run lint</div><div class="cmd-sub">Lint code</div></div></div>
+      </div>
+      <div class="cmd-input-wrap">
+        <input class="cmd-inp" id="cmdInp" placeholder="custom command..." onkeydown="if(event.key==='Enter')runCustom()"/>
+        <button class="cmd-go" onclick="runCustom()">Run</button>
+      </div>
+    </div>
+
+    <!-- Errors Panel -->
+    <div class="spanel" id="sp-errs">
+      <div class="err-list" id="errList">
+        <div class="err-empty" id="errEmpty">No errors yet.<br>Run a command to start.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- Terminal -->
+    <div class="term-area" id="termArea">
+      <div class="term-bar">
+        <span class="term-label">Terminal Output</span>
+        <button class="stop-btn" id="stopBtn" onclick="stopRun()">Stop</button>
+        <span class="term-stat" id="termStat">idle</span>
+      </div>
+      <div class="term-scroll" id="termScroll">
+        <div class="tl info">Ready. Select a command from the sidebar or type a custom one.</div>
+      </div>
+    </div>
+
+    <!-- Detail Panel (overlays right side) -->
+    <div class="detail-wrap" id="detWrap">
+      <div class="det-header">
+        <span class="det-title" id="detTitle">Error Details</span>
+        <button class="det-close" onclick="closeDet()">&#10005;</button>
+      </div>
+      <div class="det-body" id="detBody"></div>
+    </div>
+
+    <!-- History Bar -->
+    <div class="hist-bar">
+      <div class="hist-title">Run History</div>
+      <div id="histList"><div style="color:var(--m);font-size:10px;">No runs yet.</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══ STATE ═══ */
+let running=false,socket=null,errors=[],history=[];
+const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* ═══ SIDEBAR TABS ═══ */
+function sTab(t,b){
+  document.querySelectorAll('.stab-btn').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.spanel').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  document.getElementById('sp-'+t).classList.add('active');
+}
+
+/* ═══ WEBSOCKET ═══ */
+function connectWs(){
+  const url=window.location.origin;
+  try{socket=io(url,{timeout:4000,reconnectionDelay:2000});}catch(e){setWs('offline');return;}
+  socket.on('connect',()=>setWs('live'));
+  socket.on('disconnect',()=>setWs('offline'));
+  socket.on('connect_error',()=>setWs('offline'));
+
+  // Listen for SelfHeal events
+  socket.on('step:start',d=>addTl(`> ${d.action}('${d.selector}')`,'info'));
+  socket.on('step:pass',d=>addTl(`PASS: ${d.selector}`,'ok'));
+  socket.on('step:fail',d=>addTl(`FAIL: ${d.selector} — ${(d.error||'').substring(0,60)}`,'err'));
+  socket.on('heal:start',d=>addTl(`Healing: ${d.selector}...`,'warn'));
+  socket.on('step:healed',d=>addTl(`HEALED: ${d.selector} (${Math.round((d.extra?.confidence||0)*100)}%)`,'ok'));
+  socket.on('heal:result',d=>{
+    if(d.newSelector) addTl(`Fix: ${d.newSelector} — ${d.rootCause||''}`,'ok');
+    else addTl(`Heal failed: ${d.rootCause||'unknown'}`,'err');
+  });
+  socket.on('run:complete',d=>addTl(`Run complete: ${d.status}`,'info'));
+  socket.on('fragility:data',d=>{
+    if(d&&d.length) d.forEach(s=>addTl(`Fragility: ${s.selector} → ${s.fragilityScore} (${s.risk})`,'info'));
+  });
+}
+function setWs(s){
+  const dot=document.getElementById('wsDot'),lbl=document.getElementById('wsLabel');
+  dot.className='nav-dot'+(s==='live'?' live':'');
+  lbl.textContent=s==='live'?'Connected':'Disconnected';
+}
+
+/* ═══ TERMINAL ═══ */
+function addTl(text,cls){
+  const el=document.getElementById('termScroll');
+  const d=document.createElement('div');d.className='tl '+(cls||'out');d.textContent=text;
+  el.appendChild(d);el.scrollTop=el.scrollHeight;
+}
+function setTerm(s,c){const el=document.getElementById('termStat');el.textContent=s;el.className='term-stat '+(c||'');}
+
+/* ═══ RUN COMMAND ═══ */
+function run(cmd){
+  if(running){addTl('Already running. Stop first.','err');return;}
+  running=true;
+  document.getElementById('termScroll').innerHTML='';
+  addTl('$ '+cmd,'info');
+  addTl('Running...','warn');
+  setTerm('running...','run');
+  document.getElementById('stopBtn').classList.add('show');
+  document.querySelectorAll('.cmd-row').forEach(r=>{if(r.textContent.includes(cmd.split(' ').pop()))r.classList.add('running');});
+
+  // Send to backend API
+  fetch('/api/exec',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:cmd})})
+    .then(r=>r.json())
+    .then(data=>{
+      running=false;
+      document.getElementById('stopBtn').classList.remove('show');
+      document.querySelectorAll('.cmd-row.running').forEach(r=>r.classList.remove('running'));
+
+      if(data.stdout) data.stdout.split('\n').forEach(l=>{if(l.trim())addTl(l,'out');});
+      if(data.stderr) data.stderr.split('\n').forEach(l=>{if(l.trim())addTl(l,'err');});
+
+      const code=data.exitCode??data.code??0;
+      if(code===0){addTl('Done.','ok');setTerm('exit 0','ok');}
+      else{addTl('Failed (exit '+code+')','err');setTerm('exit '+code,'err');}
+
+      addHist({command:cmd,exitCode:code,time:new Date().toLocaleTimeString('en',{hour12:false})});
+
+      if(code!==0 && data.stderr){
+        addError({command:cmd,errorMsg:(data.stderr||'').split('\n').slice(-5).join('\n'),stderr:data.stderr,exitCode:code,
+          time:new Date().toLocaleTimeString('en',{hour12:false}),explanation:data.explanation||'',fix:data.fix||'',files:data.files||[]});
+      }
+    })
+    .catch(e=>{
+      running=false;
+      document.getElementById('stopBtn').classList.remove('show');
+      document.querySelectorAll('.cmd-row.running').forEach(r=>r.classList.remove('running'));
+      addTl('Network error: '+e.message,'err');
+      setTerm('error','err');
+    });
+}
+
+function runCustom(){const inp=document.getElementById('cmdInp');const c=inp.value.trim();if(!c)return;inp.value='';run(c);}
+function stopRun(){
+  fetch('/api/exec/stop',{method:'POST'}).catch(()=>{});
+  addTl('Stopping...','warn');
+}
+
+/* ═══ ERRORS ═══ */
+function addError(err){
+  errors.unshift(err);
+  renderErrors();
+}
+function renderErrors(){
+  const list=document.getElementById('errList');
+  document.getElementById('errEmpty').style.display=errors.length?'none':'flex';
+  const b=document.getElementById('eBadge');b.textContent=errors.length;b.style.display=errors.length?'inline':'none';
+  list.querySelectorAll('.err-card').forEach(c=>c.remove());
+  errors.forEach((e,i)=>{
+    const has=e.fix&&e.fix.trim();
+    const c=document.createElement('div');c.className='err-card '+(has?'fix':'nofix');c.onclick=()=>openDet(i);
+    c.innerHTML=`<div class="err-cmd">$ ${esc(e.command)}</div><div class="err-msg">${esc(e.errorMsg)}</div>
+      <div class="err-meta"><span class="badge ${has?'g':'r'}">${has?'FIX':'UNRESOLVED'}</span><span style="font-size:9px;color:var(--m);font-family:var(--mono)">exit ${e.exitCode} &middot; ${e.time}</span></div>`;
+    list.appendChild(c);
+  });
+}
+
+/* ═══ DETAIL ═══ */
+function openDet(i){
+  const e=errors[i];if(!e)return;
+  const has=e.fix&&e.fix.trim();
+  document.getElementById('detTitle').textContent=has?'Error — Fix Available':'Error Details';
+  let h='<div><span class="badge '+(has?'g':'r')+'">'+(has?'FIX AVAILABLE':'UNRESOLVED')+'</span></div>';
+  h+='<div><div class="det-label">Command</div><div class="det-code c-bl">$ '+esc(e.command)+'</div></div>';
+  h+='<div><div class="det-label">Error Output</div><div class="det-code c-r">'+esc(e.stderr||e.errorMsg)+'</div></div>';
+  if(e.explanation) h+='<div><div class="det-label">AI Diagnosis</div><div class="det-explain">'+esc(e.explanation)+'</div></div>';
+  if(has) h+='<div><div class="det-label">Suggested Fix</div><div class="det-code c-g">'+esc(e.fix)+'</div></div>';
+  if(e.files&&e.files.length){h+='<div><div class="det-label">Affected Files</div>';e.files.forEach(f=>{h+='<div class="det-file">&#128196; '+esc(f)+'</div>';});h+='</div>';}
+  if(has) h+='<button class="det-btn g" onclick="navigator.clipboard.writeText(\''+esc(e.fix).replace(/'/g,"\\'")+'\')">Copy Fix Command</button>';
+  if(has) h+='<button class="det-btn o" onclick="closeDet();run(\''+esc(e.fix).replace(/'/g,"\\'")+'\')">Re-run with Fix</button>';
+  document.getElementById('detBody').innerHTML=h;
+  document.getElementById('detWrap').classList.add('show');
+  document.getElementById('termArea').style.display='none';
+}
+function closeDet(){document.getElementById('detWrap').classList.remove('show');document.getElementById('termArea').style.display='flex';}
+
+/* ═══ HISTORY ═══ */
+function addHist(h){history.unshift(h);renderHist();}
+function renderHist(){
+  const el=document.getElementById('histList');el.innerHTML='';
+  if(!history.length){el.innerHTML='<div style="color:var(--m);font-size:10px;">No runs yet.</div>';return;}
+  history.slice(0,20).forEach((h,i)=>{
+    const ok=h.exitCode===0;
+    const r=document.createElement('div');r.className='hist-row';
+    r.innerHTML=`<span class="hist-ico">${ok?'&#10003;':'&#10060;'}</span><span class="hist-cmd">$ ${esc(h.command)}</span><span class="badge ${ok?'g':'r'}" style="font-size:7px">${ok?'OK':'FAIL'}</span><span class="hist-time">${h.time}</span>`;
+    if(!ok) r.onclick=()=>{sTab('errs',document.querySelectorAll('.stab-btn')[1]);};
+    el.appendChild(r);
+  });
+}
+
+/* ═══ INIT ═══ */
+connectWs();
+renderErrors();
+renderHist();
+</script>
+</body>
+</html>

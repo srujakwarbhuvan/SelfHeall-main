@@ -1,0 +1,44 @@
+{
+  "name": "selfheal",
+  "version": "1.0.0",
+  "description": "Self-healing Playwright test runner powered by Gemini AI",
+  "type": "module",
+  "main": "src/runner/playwrightRunner.js",
+  "bin": {
+    "selfheal": "./bin/selfheal.js"
+  },
+  "scripts": {
+    "start": "node bin/selfheal.js",
+    "dev": "node bin/selfheal.js run tests/checkout.spec.js",
+    "test": "playwright test"
+  },
+  "keywords": [
+    "playwright",
+    "self-healing",
+    "test-automation",
+    "cli",
+    "ai",
+    "gemini"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "@google/generative-ai": "^0.24.1",
+    "chalk": "^5.3.0",
+    "cheerio": "^1.2.0",
+    "commander": "^12.1.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.0",
+    "open": "^10.1.0",
+    "recast": "^0.23.9",
+    "socket.io": "^4.7.0",
+    "sql.js": "^1.14.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

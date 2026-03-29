@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SelfHeal AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    :root{
+      --bg:#08090d;--surface:#0e1117;--surface2:#161b22;--surface3:#1c2333;--surface4:#242d3d;
+      --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.10);--border3:rgba(255,255,255,0.15);
+      --text:#e6edf3;--text-dim:#8b949e;--muted:#484f58;
+      --green:#3fb950;--green-dim:rgba(63,185,80,0.12);--green-glow:rgba(63,185,80,0.3);
+      --red:#f85149;--red-dim:rgba(248,81,73,0.12);
+      --amber:#d29922;--amber-dim:rgba(210,153,34,0.12);
+      --blue:#58a6ff;--blue-dim:rgba(88,166,255,0.12);
+      --purple:#bc8cff;--purple-dim:rgba(188,140,255,0.12);
+      --gradient:linear-gradient(135deg,#3fb950 0%,#58a6ff 50%,#bc8cff 100%);
+      --r:8px;--r-lg:12px;--r-xl:16px;
+      --sans:'Inter',-apple-system,sans-serif;--mono:'JetBrains Mono',monospace;
+      --shadow:0 4px 24px rgba(0,0,0,0.5);--shadow-lg:0 8px 40px rgba(0,0,0,0.7);
+    }
+    html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;overflow:hidden;}
+    button{cursor:pointer;border:none;outline:none;font-family:var(--sans);}
+    input,select,textarea{outline:none;font-family:var(--mono);}
+    ::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--surface4);border-radius:2px;}
+    .shell{display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+
+    /* TOPBAR */
+    .topbar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;position:relative;}
+    .topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:var(--gradient);opacity:0.4;}
+    .brand{display:flex;align-items:center;gap:8px;flex:1;}
+    .brand-logo{width:28px;height:28px;border-radius:8px;background:var(--gradient);display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(63,185,80,0.3);font-size:14px;flex-shrink:0;}
+    .brand-name{font-size:13px;font-weight:800;letter-spacing:-0.02em;background:var(--gradient);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+    .brand-badge{font-size:8px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);background:var(--surface3);border:1px solid var(--border);padding:2px 6px;border-radius:4px;}
+
+    /* TABS */
+    .tab-bar{display:flex;gap:2px;padding:6px 10px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+    .tab-btn{padding:6px 14px;border-radius:var(--r);font-size:11px;font-weight:600;color:var(--text-dim);background:transparent;transition:all 0.15s;position:relative;display:flex;align-items:center;gap:5px;}
+    .tab-btn:hover{color:var(--text);background:var(--surface2);}
+    .tab-btn.active{color:var(--green);background:var(--green-dim);}
+    .tab-btn.active::after{content:'';position:absolute;bottom:-7px;left:20%;right:20%;height:2px;background:var(--green);border-radius:1px;}
+    .tab-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+    .tab-dot.red{background:var(--red);box-shadow:0 0 6px rgba(248,81,73,0.4);}
+    .tab-dot.blue{background:var(--blue);}
+    .err-badge{font-size:9px;background:var(--red-dim);color:var(--red);padding:0 5px;border-radius:8px;font-weight:700;margin-left:2px;display:none;}
+    .tab-panel{display:none;flex:1;flex-direction:column;min-height:0;overflow:hidden;}
+    .tab-panel.active{display:flex;}
+
+    /* ═══ SHARED STYLES ═══ */
+    .section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;}
+    .badge{display:inline-block;font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:0.04em;text-transform:uppercase;}
+    .badge.green{background:var(--green-dim);color:var(--green);}
+    .badge.red{background:var(--red-dim);color:var(--red);}
+    .badge.amber{background:var(--amber-dim);color:var(--amber);}
+    .badge.blue{background:var(--blue-dim);color:var(--blue);}
+
+    /* ═══ ERRORS TAB ═══ */
+    .errors-header{padding:12px 14px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .errors-list{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;}
+    .errors-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:10px;padding:40px;}
+    .errors-empty-icon{font-size:36px;opacity:0.3;}
+    .errors-empty-text{font-size:11px;color:var(--muted);text-align:center;line-height:1.7;}
+    .errors-empty-text code{color:var(--green);font-family:var(--mono);font-size:10px;}
+
+    .e-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px;cursor:pointer;transition:all 0.15s;animation:fadeIn .2s ease;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+    .e-card:hover{border-color:var(--border3);background:var(--surface3);}
+    .e-card.healed{border-left:3px solid var(--green);}
+    .e-card.failed{border-left:3px solid var(--red);}
+    .e-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;}
+    .e-status{font-size:14px;flex-shrink:0;margin-top:1px;}
+    .e-info{flex:1;min-width:0;}
+    .e-cmd{font-family:var(--mono);font-size:10px;color:var(--blue);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .e-msg{font-size:11px;color:var(--red);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+    .e-time{font-size:9px;color:var(--muted);font-family:var(--mono);flex-shrink:0;}
+    .e-summary{margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-size:10.5px;line-height:1.5;}
+    .e-summary .lbl{color:var(--green);font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px;display:block;}
+    .e-summary .val{color:var(--text-dim);}
+    .e-summary .fix{font-family:var(--mono);color:var(--green);font-size:10px;}
+    .e-files{margin-top:6px;font-family:var(--mono);font-size:9.5px;color:var(--blue);padding:4px 8px;background:var(--blue-dim);border-radius:6px;}
+
+    /* Detail Panel */
+    .detail-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);z-index:200;display:none;align-items:stretch;justify-content:flex-end;}
+    .detail-overlay.show{display:flex;}
+    .detail-panel{width:100%;max-width:420px;background:var(--surface);border-left:1px solid var(--border2);overflow-y:auto;animation:slideIn .2s ease;}
+    @keyframes slideIn{from{transform:translateX(20px);opacity:0;}to{transform:none;opacity:1;}}
+    .dp-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:1;}
+    .dp-title{font-size:13px;font-weight:800;}
+    .dp-close{width:28px;height:28px;border-radius:6px;background:var(--surface3);color:var(--text-dim);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+    .dp-close:hover{color:var(--red);background:var(--red-dim);}
+    .dp-body{padding:14px 16px;display:flex;flex-direction:column;gap:14px;}
+    .dp-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:6px;}
+    .dp-code{background:#0a0c10;border:1px solid var(--border2);border-radius:var(--r);padding:10px;font-family:var(--mono);font-size:10.5px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;word-break:break-all;}
+    .dp-code.err{color:var(--red);}
+    .dp-code.fix{color:var(--green);}
+    .dp-code.cmd{color:var(--blue);}
+    .dp-explain{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;font-size:11.5px;line-height:1.7;color:var(--text-dim);}
+    .dp-file{display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--blue-dim);border:1px solid rgba(88,166,255,0.15);border-radius:6px;font-family:var(--mono);font-size:10px;color:var(--blue);cursor:pointer;margin-bottom:3px;}
+    .dp-file:hover{background:rgba(88,166,255,0.15);}
+    .dp-btn{width:100%;padding:10px;border-radius:var(--r);font-size:12px;font-weight:700;transition:0.15s;margin-top:4px;}
+    .dp-btn.green{background:var(--green);color:#000;}
+    .dp-btn.green:hover{box-shadow:0 0 16px var(--green-glow);}
+    .dp-btn.outline{background:transparent;color:var(--text-dim);border:1px solid var(--border2);}
+    .dp-btn.outline:hover{color:var(--text);border-color:var(--border3);}
+
+    /* ═══ CONFIG TAB ═══ */
+    .config-scroll{flex:1;overflow-y:auto;padding:12px;}
+
+    /* Command Grid */
+    .cmd-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;}
+    .cmd-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px;cursor:pointer;transition:all 0.15s;text-align:center;}
+    .cmd-card:hover{border-color:var(--green);background:var(--green-dim);}
+    .cmd-card.running{border-color:var(--amber);background:var(--amber-dim);pointer-events:none;}
+    .cmd-icon{font-size:18px;margin-bottom:4px;}
+    .cmd-name{font-size:10px;font-weight:700;color:var(--text);}
+    .cmd-desc{font-size:8.5px;color:var(--muted);margin-top:2px;line-height:1.3;}
+
+    /* Terminal area */
+    .term-box{background:#0a0c10;border:1px solid var(--border2);border-radius:var(--r);margin-bottom:12px;overflow:hidden;}
+    .term-header{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border);}
+    .term-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);}
+    .term-status{font-size:9px;font-family:var(--mono);color:var(--muted);}
+    .term-status.running{color:var(--amber);}
+    .term-status.done{color:var(--green);}
+    .term-status.error{color:var(--red);}
+    .term-output{max-height:200px;overflow-y:auto;padding:8px 10px;font-family:var(--mono);font-size:10px;line-height:1.6;}
+    .term-line{padding:1px 0;}
+    .term-line.stdout{color:var(--text-dim);}
+    .term-line.stderr{color:var(--red);}
+    .term-line.info{color:var(--blue);}
+    .term-line.success{color:var(--green);}
+    .term-line.progress{color:var(--amber);}
+
+    /* Custom command input */
+    .custom-cmd{display:flex;gap:6px;margin-bottom:14px;}
+    .custom-input{flex:1;padding:7px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:11px;}
+    .custom-input:focus{border-color:var(--green);}
+    .custom-run{padding:7px 14px;border-radius:var(--r);font-size:11px;font-weight:700;background:var(--green);color:#000;transition:0.15s;}
+    .custom-run:hover{box-shadow:0 0 12px var(--green-glow);}
+
+    /* History */
+    .hist-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:4px;cursor:pointer;transition:0.15s;}
+    .hist-item:hover{border-color:var(--border3);background:var(--surface3);}
+    .hist-icon{font-size:12px;flex-shrink:0;}
+    .hist-info{flex:1;min-width:0;}
+    .hist-cmd{font-family:var(--mono);font-size:10px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .hist-meta{font-size:9px;color:var(--muted);margin-top:1px;}
+    .hist-badge{flex-shrink:0;}
+    .hist-empty{text-align:center;padding:20px;color:var(--muted);font-size:11px;}
+
+    /* Config fields */
+    .cfg-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px;margin-bottom:8px;}
+    .cfg-label{font-size:10px;font-weight:600;color:var(--text-dim);margin-bottom:6px;}
+    .cfg-input{width:100%;padding:6px 10px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-size:11px;}
+    .cfg-input:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(63,185,80,0.1);}
+    .cfg-desc{font-size:9.5px;color:var(--muted);margin-top:4px;line-height:1.4;}
+    .cfg-save{padding:8px 20px;border-radius:var(--r);font-size:11px;font-weight:700;background:var(--green);color:#000;transition:0.15s;}
+    .cfg-save:hover{box-shadow:0 0 12px var(--green-glow);}
+
+    /* Toast */
+    .toast-box{position:fixed;top:8px;right:8px;z-index:300;display:flex;flex-direction:column;gap:6px;pointer-events:none;}
+    .toast{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r-lg);padding:10px 14px;max-width:300px;box-shadow:var(--shadow-lg);pointer-events:all;cursor:pointer;animation:toastIn .3s ease;display:flex;align-items:flex-start;gap:8px;}
+    @keyframes toastIn{from{opacity:0;transform:translateX(20px);}to{opacity:1;transform:none;}}
+    .toast.error{border-left:3px solid var(--red);}.toast.success{border-left:3px solid var(--green);}.toast.warning{border-left:3px solid var(--amber);}
+    .toast-icon{font-size:15px;flex-shrink:0;}
+    .toast-body{flex:1;}
+    .toast-title{font-size:11px;font-weight:700;color:var(--text);margin-bottom:2px;}
+    .toast-msg{font-size:10px;color:var(--text-dim);line-height:1.4;}
+    .toast-act{margin-top:5px;padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;background:var(--green-dim);color:var(--green);border:1px solid var(--green);cursor:pointer;display:inline-block;}
+    .toast.out{animation:toastOut .3s ease forwards;}
+    @keyframes toastOut{to{opacity:0;transform:translateX(20px);}}
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-logo">&#9878;</div>
+      <span class="brand-name">SelfHeal</span>
+      <span class="brand-badge">AI AGENT</span>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="config" onclick="switchTab('config',this)">
+      <span class="tab-dot blue"></span> Commands
+    </button>
+    <button class="tab-btn" data-tab="errors" onclick="switchTab('errors',this)">
+      <span class="tab-dot red"></span> Errors <span class="err-badge" id="errBadge">0</span>
+    </button>
+  </div>
+
+  <!-- ═══ COMMANDS / CONFIG TAB ═══ -->
+  <div class="tab-panel active" id="panel-config">
+    <div class="config-scroll">
+
+      <!-- Quick Commands -->
+      <div class="section-title">Quick Commands</div>
+      <div class="cmd-grid" id="cmdGrid">
+        <div class="cmd-card" onclick="runCmd('npm run dev')"><div class="cmd-icon">&#9654;</div><div class="cmd-name">npm run dev</div><div class="cmd-desc">Start dev server</div></div>
+        <div class="cmd-card" onclick="runCmd('npm run build')"><div class="cmd-icon">&#128230;</div><div class="cmd-name">npm run build</div><div class="cmd-desc">Build project</div></div>
+        <div class="cmd-card" onclick="runCmd('npm test')"><div class="cmd-icon">&#9889;</div><div class="cmd-name">npm test</div><div class="cmd-desc">Run tests</div></div>
+        <div class="cmd-card" onclick="runCmd('npm start')"><div class="cmd-icon">&#128640;</div><div class="cmd-name">npm start</div><div class="cmd-desc">Start app</div></div>
+        <div class="cmd-card" onclick="runCmd('npm install')"><div class="cmd-icon">&#128229;</div><div class="cmd-name">npm install</div><div class="cmd-desc">Install deps</div></div>
+        <div class="cmd-card" onclick="runCmd('npm run lint')"><div class="cmd-icon">&#128269;</div><div class="cmd-name">npm run lint</div><div class="cmd-desc">Lint code</div></div>
+      </div>
+
+      <!-- Custom Command -->
+      <div class="section-title">Run Custom Command</div>
+      <div class="custom-cmd">
+        <input class="custom-input" id="customInput" placeholder="e.g. npm run build" onkeydown="if(event.key==='Enter')runCustom()"/>
+        <button class="custom-run" onclick="runCustom()">Run</button>
+      </div>
+
+      <!-- Terminal Output -->
+      <div class="term-box" id="termBox">
+        <div class="term-header">
+          <span class="term-title">Terminal</span>
+          <button id="stopBtn" onclick="stopCmd()" style="display:none;padding:3px 10px;border-radius:4px;font-size:9px;font-weight:700;background:var(--red-dim);color:var(--red);border:1px solid var(--red);cursor:pointer;">Stop</button>
+          <span class="term-status" id="termStatus">idle</span>
+        </div>
+        <div class="term-output" id="termOutput">
+          <div class="term-line info">Ready. Click a command or type one above.</div>
+        </div>
+      </div>
+
+      <!-- Run History -->
+      <div class="section-title">Run History</div>
+      <div id="historyList">
+        <div class="hist-empty" id="histEmpty">No commands run yet.</div>
+      </div>
+
+      <!-- Settings -->
+      <div style="margin-top:16px;">
+        <div class="section-title">Settings</div>
+        <div class="cfg-card">
+          <div class="cfg-label">Gemini API Key</div>
+          <input class="cfg-input" id="cfgApiKey" type="password" placeholder="AIzaSy..."/>
+          <div class="cfg-desc">For AI error diagnosis. Also reads from workspace .env</div>
+        </div>
+        <div class="cfg-card">
+          <div class="cfg-label">Confidence Threshold</div>
+          <input class="cfg-input" id="cfgThreshold" type="number" min="50" max="99" value="80" style="width:80px;"/>
+          <div class="cfg-desc">Heals below this % need manual review</div>
+        </div>
+        <div style="margin-top:8px;">
+          <button class="cfg-save" onclick="saveConfig()">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ERRORS TAB ═══ -->
+  <div class="tab-panel" id="panel-errors">
+    <div class="errors-header">
+      <span class="section-title" style="margin:0">Error Dashboard</span>
+      <span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:var(--red-dim);color:var(--red);font-family:var(--mono);" id="errCount">0</span>
+    </div>
+    <div class="errors-list" id="errList">
+      <div class="errors-empty" id="errEmpty">
+        <div class="errors-empty-icon">&#10003;</div>
+        <div class="errors-empty-text">
+          No errors captured yet.<br><br>
+          Run commands from the <strong>Commands</strong> tab<br>
+          or use <code>selfheal &lt;command&gt;</code> in terminal.<br><br>
+          Errors auto-appear here with AI diagnosis.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toasts -->
+<div class="toast-box" id="toastBox"></div>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detailOverlay" onclick="if(event.target===this)closeDetail()">
+  <div class="detail-panel">
+    <div class="dp-header">
+      <span class="dp-title" id="dpTitle">Error Details</span>
+      <button class="dp-close" onclick="closeDetail()">&#10005;</button>
+    </div>
+    <div class="dp-body" id="dpBody"></div>
+  </div>
+</div>
+
+<script src="chat.js"></script>
+<script src="ui.js"></script>
+<script src="ws-client.js"></script>
+<script src="terminal.js"></script>
+
+<script>
+/* ─── TABS ─── */
+function switchTab(t,b){
+  document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(x=>x.classList.remove('active'));
+  (b||document.querySelector(`.tab-btn[data-tab="${t}"]`))?.classList.add('active');
+  document.getElementById('panel-'+t)?.classList.add('active');
+}
+
+/* ─── TOAST ─── */
+let _tid=0;
+function toast(type,title,msg,actLabel,actFn){
+  const id='t'+(++_tid),el=document.createElement('div');
+  el.className='toast '+type;el.id=id;
+  el.innerHTML=`<div class="toast-icon">${{error:'&#9888;',success:'&#10003;',warning:'&#9888;'}[type]||''}</div><div class="toast-body"><div class="toast-title">${title}</div><div class="toast-msg">${msg}</div>${actLabel?`<span class="toast-act" id="${id}a">${actLabel}</span>`:''}</div>`;
+  document.getElementById('toastBox').appendChild(el);
+  if(actFn){document.getElementById(id+'a').onclick=e=>{e.stopPropagation();actFn();dismissToast(id);};}
+  el.onclick=()=>dismissToast(id);
+  setTimeout(()=>dismissToast(id),8000);
+}
+function dismissToast(id){const el=document.getElementById(id);if(!el)return;el.classList.add('out');setTimeout(()=>el.remove(),300);}
+
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ─── TERMINAL ─── */
+let termRunning=false;
+const history=[];
+
+function addLine(text,type){
+  const el=document.getElementById('termOutput');
+  const line=document.createElement('div');
+  line.className='term-line '+(type||'stdout');
+  line.textContent=text;
+  el.appendChild(line);
+  el.scrollTop=el.scrollHeight;
+}
+
+function setTermStatus(s,cls){
+  const el=document.getElementById('termStatus');
+  el.textContent=s;el.className='term-status '+(cls||'');
+}
+
+function runCmd(cmd){
+  if(termRunning){toast('warning','Busy','A command is already running. Stop it first.');return;}
+  termRunning=true;
+  document.getElementById('termOutput').innerHTML='';
+  addLine('$ '+cmd,'info');
+  addLine('Running...','progress');
+  setTermStatus('running...','running');
+  document.getElementById('stopBtn').style.display='inline-block';
+
+  document.querySelectorAll('.cmd-card').forEach(c=>{
+    if(c.textContent.includes(cmd.split(' ').pop())) c.classList.add('running');
+  });
+
+  if(typeof vscode!=='undefined'){
+    vscode.postMessage({type:'runTerminalCommand',command:cmd});
+  }
+}
+
+function stopCmd(){
+  if(typeof vscode!=='undefined'){
+    vscode.postMessage({type:'killTerminalCommand'});
+  }
+  addLine('Stopping...','stderr');
+}
+
+function runCustom(){
+  const input=document.getElementById('customInput');
+  const cmd=input.value.trim();
+  if(!cmd)return;
+  input.value='';
+  runCmd(cmd);
+}
+
+/* ─── HISTORY ─── */
+function addHistory(entry){
+  history.unshift(entry);
+  renderHistory();
+}
+
+function renderHistory(){
+  const list=document.getElementById('historyList');
+  document.getElementById('histEmpty').style.display=history.length?'none':'block';
+  list.querySelectorAll('.hist-item').forEach(x=>x.remove());
+  history.forEach((h,i)=>{
+    const el=document.createElement('div');
+    el.className='hist-item';
+    const isOk=h.exitCode===0;
+    el.innerHTML=`
+      <div class="hist-icon">${isOk?'&#10003;':'&#10060;'}</div>
+      <div class="hist-info">
+        <div class="hist-cmd">$ ${esc(h.command)}</div>
+        <div class="hist-meta">${h.time} &middot; exit ${h.exitCode??'?'} &middot; ${h.duration||'--'}</div>
+      </div>
+      <span class="badge ${isOk?'green':'red'} hist-badge">${isOk?'PASS':'FAIL'}</span>`;
+    if(!isOk && h.errorIndex!=null){
+      el.onclick=()=>{switchTab('errors');setTimeout(()=>openDetail(h.errorIndex),100);};
+    } else if(!isOk){
+      el.onclick=()=>switchTab('errors');
+    }
+    list.appendChild(el);
+  });
+}
+
+/* ─── ERRORS ─── */
+const errors=[];
+
+function addError(err){
+  errors.unshift(err);
+  renderErrors();
+  toast(err.fix?'warning':'error',err.fix?'Error Diagnosed':'Command Failed',
+    esc(err.errorMsg||'').substring(0,80),'View Details',()=>{switchTab('errors');openDetail(0);});
+}
+
+function renderErrors(){
+  const list=document.getElementById('errList');
+  document.getElementById('errEmpty').style.display=errors.length?'none':'flex';
+  document.getElementById('errCount').textContent=errors.length;
+  const b=document.getElementById('errBadge');b.textContent=errors.length;b.style.display=errors.length?'inline':'none';
+  list.querySelectorAll('.e-card').forEach(c=>c.remove());
+  errors.forEach((err,i)=>{
+    const hasFix=err.fix&&err.fix.trim();
+    const card=document.createElement('div');
+    card.className='e-card '+(hasFix?'healed':'failed');
+    card.onclick=()=>openDetail(i);
+    card.innerHTML=`
+      <div class="e-top">
+        <div class="e-status">${hasFix?'&#9889;':'&#10060;'}</div>
+        <div class="e-info">
+          <div class="e-cmd">$ ${esc(err.command||'')}</div>
+          <div class="e-msg">${esc(err.errorMsg||'')}</div>
+        </div>
+        <div class="e-time">${err.time||''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+        <span class="badge ${hasFix?'green':'red'}">${hasFix?'FIX AVAILABLE':'UNRESOLVED'}</span>
+        ${err.exitCode!=null?`<span style="font-size:9px;color:var(--muted);font-family:var(--mono)">exit ${err.exitCode}</span>`:''}
+      </div>
+      ${err.explanation?`<div class="e-summary"><span class="lbl">Diagnosis</span><span class="val">${esc(err.explanation)}</span></div>`:''}
+      ${hasFix?`<div class="e-summary"><span class="lbl">Suggested Fix</span><span class="fix">${esc(err.fix)}</span></div>`:''}
+      ${err.files&&err.files.length?`<div class="e-files">${err.files.map(f=>'&#128196; '+esc(f)).join(' &middot; ')}</div>`:''}`;
+    list.appendChild(card);
+  });
+}
+
+function openDetail(i){
+  const err=errors[i];if(!err)return;
+  const hasFix=err.fix&&err.fix.trim();
+  document.getElementById('dpTitle').textContent=hasFix?'Error — Fix Available':'Error Details';
+  let h='';
+  h+=`<div><span class="badge ${hasFix?'green':'red'}">${hasFix?'FIX AVAILABLE':'UNRESOLVED'}</span></div>`;
+  h+=`<div><div class="dp-label">Command</div><div class="dp-code cmd">$ ${esc(err.command||'')}</div></div>`;
+  h+=`<div><div class="dp-label">Error Output</div><div class="dp-code err">${esc(err.stderr||err.errorMsg||'No details')}</div></div>`;
+  if(err.explanation) h+=`<div><div class="dp-label">AI Diagnosis</div><div class="dp-explain">${esc(err.explanation)}</div></div>`;
+  if(hasFix) h+=`<div><div class="dp-label">Suggested Fix</div><div class="dp-code fix">${esc(err.fix)}</div></div>`;
+  if(err.files&&err.files.length){
+    h+=`<div><div class="dp-label">Affected Files</div>`;
+    err.files.forEach(f=>{h+=`<div class="dp-file" onclick="openFile('${esc(f)}')"><span>&#128196;</span>${esc(f)}</div>`;});
+    h+=`</div>`;
+  }
+  if(hasFix) h+=`<button class="dp-btn green" onclick="copyFix(${i})">Copy Fix Command</button>`;
+  h+=`<button class="dp-btn outline" onclick="rerunCmd(${i})">Re-run Command</button>`;
+  if(!err.explanation) h+=`<button class="dp-btn outline" onclick="askAi(${i})">Ask AI for Diagnosis</button>`;
+  document.getElementById('dpBody').innerHTML=h;
+  document.getElementById('detailOverlay').classList.add('show');
+}
+
+function closeDetail(){document.getElementById('detailOverlay').classList.remove('show');}
+function copyFix(i){const e=errors[i];if(!e||!e.fix)return;navigator.clipboard?.writeText(e.fix);toast('success','Copied','Fix command copied to clipboard.');closeDetail();}
+function rerunCmd(i){const e=errors[i];if(!e)return;closeDetail();switchTab('config');runCmd(e.command);}
+function openFile(p){if(typeof vscode!=='undefined')vscode.postMessage({type:'openFile',path:p});}
+function askAi(i){const e=errors[i];if(!e)return;if(typeof vscode!=='undefined')vscode.postMessage({type:'diagnoseError',error:e});closeDetail();toast('success','Analyzing...','AI is diagnosing the error.');}
+
+/* ─── CONFIG ─── */
+function saveConfig(){
+  const key=document.getElementById('cfgApiKey').value.trim();
+  const th=document.getElementById('cfgThreshold').value;
+  if(typeof vscode!=='undefined')vscode.postMessage({type:'saveConfig',apiKey:key,threshold:parseInt(th)});
+  toast('success','Saved','Settings updated.');
+}
+
+/* ─── MESSAGE HANDLER ─── */
+let _cmdStartTime=null;
+window.addEventListener('message',e=>{
+  const msg=e.data;
+  switch(msg.type){
+    case 'switchTab':switchTab(msg.tab);break;
+    case 'terminalOutput':addLine(msg.text||msg.line||'',msg.stream||'stdout');break;
+    case 'terminalDone':{
+      termRunning=false;
+      document.getElementById('stopBtn').style.display='none';
+      document.querySelectorAll('.cmd-card.running').forEach(c=>c.classList.remove('running'));
+      const code=msg.code??0;
+      const dur=_cmdStartTime?((Date.now()-_cmdStartTime)/1000).toFixed(1)+'s':'--';
+      if(code===0){addLine('Done.','success');setTermStatus('exit 0','done');}
+      else if(code===130){addLine('Stopped.','info');setTermStatus('stopped','');}
+      else{addLine('Failed (exit '+code+')','stderr');setTermStatus('exit '+code,'error');}
+      addHistory({command:msg._command||'unknown',exitCode:code,time:new Date().toLocaleTimeString('en',{hour12:false}),duration:dur,errorIndex:code!==0&&code!==130?0:null});
+      _cmdStartTime=null;
+      break;
+    }
+    case 'terminalError':addLine('ERROR: '+msg.message,'stderr');termRunning=false;setTermStatus('error','error');document.getElementById('stopBtn').style.display='none';document.querySelectorAll('.cmd-card.running').forEach(c=>c.classList.remove('running'));break;
+    case 'capturedError':addError(msg.error);break;
+    case 'cmdStarted':_cmdStartTime=Date.now();break;
+  }
+});
+renderHistory();renderErrors();
+</script>
+</body>
+</html>

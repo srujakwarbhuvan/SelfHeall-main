@@ -1,0 +1,113 @@
+{
+  "name": "selfheal-vscode",
+  "displayName": "SelfHeal AI",
+  "description": "AI-Powered Dev Assistant with Debugging Intelligence — embedded in your editor.",
+  "version": "3.1.0",
+  "publisher": "selfheal",
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Testing",
+    "Debuggers",
+    "Machine Learning"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "selfheal-panel",
+          "title": "SelfHeal AI",
+          "icon": "$(beaker)"
+        }
+      ]
+    },
+    "views": {
+      "selfheal-panel": [
+        {
+          "type": "webview",
+          "id": "selfheal.agentView",
+          "name": "SelfHeal AI"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "selfheal.runCurrentTest",
+        "title": "SelfHeal: Run Current Test",
+        "icon": "$(play)"
+      },
+      {
+        "command": "selfheal.stopRun",
+        "title": "SelfHeal: Stop Run",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "selfheal.openPanel",
+        "title": "SelfHeal: Open Panel",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "selfheal.help",
+        "title": "SelfHeal: Help",
+        "icon": "$(question)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "selfheal.runCurrentTest",
+        "key": "ctrl+shift+h",
+        "mac": "cmd+shift+h",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "selfheal.help",
+        "key": "ctrl+shift+/",
+        "mac": "cmd+shift+/"
+      },
+      {
+        "command": "selfheal.openPanel",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "selfheal.runCurrentTest",
+          "when": "view == selfheal.agentView",
+          "group": "navigation"
+        },
+        {
+          "command": "selfheal.stopRun",
+          "when": "view == selfheal.agentView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SelfHeal AI",
+      "properties": {
+        "selfheal.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Gemini API key for AI features. Can also be set in workspace .env as GEMINI_API_KEY."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "18.x",
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.1.6"
+  }
+}

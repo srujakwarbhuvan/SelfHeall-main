@@ -1,0 +1,18 @@
+node_modules/
+.env
+data/heals.db*
+data/selfheal.db*
+data/run-history.json
+heal-report.json
+heals.json
+app_log.txt
+config.json
+
+# SelfHeal Temp & Build Artifacts
+.selfheal/
+release/
+*.tgz
+*.vsix
+vscode-extension/out/
+__pycache__/
+*.pyc

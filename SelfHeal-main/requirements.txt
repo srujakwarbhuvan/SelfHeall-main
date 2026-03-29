@@ -1,0 +1,6 @@
+flask
+playwright
+google-generativeai
+google-genai
+flask-cors
+requests

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SelfHeal AI — Debugging Intelligence for VS Code</title>
+    <!-- Modern web font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body>
+    <!-- Navbar -->
+    <nav class="navbar">
+      <div class="logo">
+        <span class="icon">🛡️</span>
+        <span class="text">SelfHeal AI</span>
+      </div>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How it Works</a>
+        <a href="https://github.com/srujakwarbhuvan/SelfHeal" target="_blank" class="primary-btn">GitHub</a>
+        <a href="http://localhost:3001" target="_blank" class="signin-btn">Dashboard &rarr;</a>
+      </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="hero">
+      <div class="bg-gradient-spot spot-1"></div>
+      <div class="bg-gradient-spot spot-2"></div>
+      
+      <div class="hero-content">
+        <div class="badge">&#10024; v3.1 — AI Agent Mode</div>
+        <h1>Self-Healing Tests, <br/> <span class="highlight">Zero Human Intervention.</span></h1>
+        <p>AI-powered Playwright test runner that detects broken selectors and heals them in real-time using intent-aware Gemini reasoning. Plus a VS Code agent that auto-diagnoses terminal errors.</p>
+        <div class="cta-group">
+          <a href="/selfheal-vscode-3.1.0.vsix" class="primary-btn pulse">Download Extension (.vsix)</a>
+          <a href="#how-it-works" class="secondary-btn">See it in action</a>
+        </div>
+        <div class="terminal-mock">
+          <div class="mac-dots"><span></span><span></span><span></span></div>
+          <p><span class="prompt">❯</span> npx @vscode/vsce package</p>
+          <p><span class="prompt">❯</span> code --install-extension selfheal.vsix</p>
+          <p class="success">🚀 Extension installed successfully!</p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+      <h2>Everything you need to <span class="highlight">ship faster</span></h2>
+      <div class="glass-grid">
+        <div class="glass-card">
+          <div class="card-icon">&#9878;</div>
+          <h3>Intent-Aware Healing</h3>
+          <p>Pass human intent to every test step. When selectors break, the AI understands the <em>goal</em>, not just the syntax — healing with 95%+ confidence.</p>
+        </div>
+        <div class="glass-card">
+          <div class="card-icon">&#9889;</div>
+          <h3>Multi-Layer Pipeline</h3>
+          <p>Cache lookup (instant) &#8594; Local DOM heuristics &#8594; Gemini 2.5 Flash AI. Most heals resolve locally without any API call.</p>
+        </div>
+        <div class="glass-card">
+          <div class="card-icon">&#128172;</div>
+          <h3>AI Agent Chat</h3>
+          <p>VS Code sidebar with <code>/debug</code>, <code>/heal</code>, <code>/fix</code>, <code>/explain</code> commands. Streaming Gemini responses with full code context.</p>
+        </div>
+        <div class="glass-card">
+          <div class="card-icon">&#128736;</div>
+          <h3>Terminal Error Capture</h3>
+          <p>Run <code>selfheal npm run build</code> — any errors are auto-diagnosed by AI and shown as fixable cards with one-click apply.</p>
+        </div>
+        <div class="glass-card">
+          <div class="card-icon">&#128202;</div>
+          <h3>Live Dashboard</h3>
+          <p>Real-time Socket.IO monitoring with fragility scores, step-by-step execution, heal reasoning, and confidence visualization.</p>
+        </div>
+        <div class="glass-card">
+          <div class="card-icon">&#128640;</div>
+          <h3>CI/CD Ready</h3>
+          <p>Run with <code>--ci</code> flag for JSON output, proper exit codes, and zero interactive prompts. Plug into any pipeline.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Interactive Showcase Section -->
+    <section id="how-it-works" class="showcase">
+      <div class="showcase-content">
+        <h2>Powered by <span class="highlight">Gemini 2.5 Flash</span></h2>
+        <p>Multi-key API rotation with exponential backoff. Screenshot context for visual grounding. Intent-aware prompts that understand what your test <em>means</em>, not just what it <em>says</em>.</p>
+
+        <div class="command-pills">
+          <span class="pill">/debug</span>
+          <span class="pill">/fix</span>
+          <span class="pill">/heal</span>
+          <span class="pill">/explain</span>
+          <span class="pill">/analyze</span>
+          <span class="pill">/refactor</span>
+          <span class="pill">/generate</span>
+        </div>
+      </div>
+      <div class="showcase-visual glass-panel">
+        <div class="panel-header">
+           <span class="tab active">💬 Chat</span>
+           <span class="tab">📊 Dashboard</span>
+        </div>
+        <div class="panel-body typed-out-container">
+          <p class="user-msg"><strong>You:</strong> /debug</p>
+          <p class="ai-msg"><strong>SelfHeal AI:</strong> I found the root cause! The variable <code>token</code> is deeply nested but undefined here. I recommend adding optional chaining. <br/><br/><code>const auth = req?.headers?.token;</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <div class="logo">
+        <span class="icon">🛡️</span>
+        <span class="text">SelfHeal</span>
+      </div>
+      <p>Built with ❤️ for modern developers.</p>
+    </footer>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

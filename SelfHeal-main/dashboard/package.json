@@ -1,0 +1,32 @@
+{
+    "name": "selfheal-vscode",
+    "displayName": "SelfHeal",
+    "description": "AI-Powered Test Self-Healing for Playwright",
+    "version": "1.0.0",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "categories": [
+        "Testing"
+    ],
+    "activationEvents": [],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "selfheal.runCurrentTest",
+                "title": "SelfHeal: Run Current Test"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./"
+    },
+    "devDependencies": {
+        "@types/node": "18.x",
+        "@types/vscode": "^1.80.0",
+        "typescript": "^5.1.6"
+    }
+}
