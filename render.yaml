@@ -1,0 +1,46 @@
+services:
+  - type: web
+    name: selfheal-dashboard
+    env: node
+    plan: free
+    region: oregon
+    rootDir: SelfHeal-main
+    
+    # ── Build Command ─────────────────────────────────────────
+    # Installs standard NPM packages and Playwright browser binaries
+    # (required for self-healing execution via the dashboard)
+    buildCommand: npm install && npx playwright install --with-deps chromium
+    
+    # ── Start Command ──────────────────────────────────────────
+    # Points to the integrated entry point that starts both HTTP and WS servers
+    startCommand: node src/server/index.js
+    
+    # ── Environment Variables ──────────────────────────────────
+    envVars:
+      - key: NODE_VERSION
+        value: 18.0.0
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      
+      # [PLACEHOLDER] Application API Key (Required for AI operations)
+      - key: GEMINI_API_KEY
+        sync: false
+        description: "Your primary Google Gemini API Key"
+
+      # [PLACEHOLDER] API Key Rotation (Optional)
+      - key: GEMINI_API_KEYS
+        sync: false
+        description: "Comma-separated list of Gemini API Keys"
+      
+      # [OPTIONAL] Execution behavior
+      - key: SELFHEAL_DRY_RUN
+        value: "false"
+
+    # ── Reliability ───────────────────────────────────────────
+    healthCheckPath: /api/heals
+    autoDeploy: true
+
+    # Note: Static assets (dashboard/ and website/) are served via 
+    # the Express server defined in src/server/httpServer.js

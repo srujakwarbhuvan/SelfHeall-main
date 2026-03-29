@@ -4,7 +4,14 @@
  * Uses sql.js (Emscripten-compiled SQLite) so the project works
  * on any OS/Node version without C++ build tools.
  *
- * The DB is persisted to disk on every write and loaded on init.
+ * ⚠️ RENDER DEPLOYMENT NOTE: 
+ * Because Render's filesystem is ephemeral, this SQLite file will be 
+ * reset on every deploy/restart.
+ *
+ * OPTION A (Current): Keep sql.js (Data resets on deploy — fine for demos).
+ * OPTION B: Swap to a managed database (e.g., Render PostgreSQL). 
+ *           Requires 'pg' package. See src/storage/healHistory.pg.js for reference.
+ * OPTION C (Recommended): Use the Firebase sync bridge (integrated in src/db/firebaseClient.js).
  * ============================================================
  */
 

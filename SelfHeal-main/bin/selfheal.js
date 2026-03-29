@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * SelfHeal CLI — Entry Point
+ * SelfHeal CLI — Entry Point (v3)
  * ============================================================
- * Handles subcommand dispatching and interactive onboarding.
+ * FIXED: Explicitly handles terminal input buffer and ensures prompt visibility.
  */
 
 import fs from 'fs';
@@ -11,160 +11,182 @@ import readline from 'readline';
 import chalk from 'chalk';
 import { runCommandWithHealing } from '../src/runner/execRunner.js';
 
-const args = process.argv.slice(2);
-const command = args[0];
+// PRINT VERSION IMMEDIATELY TO CONFIRM LINK
+process.stdout.write(chalk.bold(`\n  SelfHeal — Powered by Gemini AI v3.0\n`));
+process.stdout.write(`  ======================================\n`);
 
-// ── UTILITIES ───────────────────────────────────────────────
+// ONE SHARED RL INTERFACE
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+  terminal: true
+});
 
+// GLOBAL SIGINT HANDLER
+rl.on('SIGINT', () => {
+  process.stdout.write('\n  ' + chalk.yellow('Goodbye!\n'));
+  process.exit(0);
+});
+
+/** Synchronous recursive file search */
+function findSpecFiles(dir, allFiles = []) {
+  try {
+    const skip = ['node_modules', '.git', 'dist', 'coverage', '.vscode', 'release', 'fixtures', 'data'];
+    const files = fs.readdirSync(dir);
+    
+    for (const file of files) {
+      if (skip.includes(file)) continue;
+      
+      const fullPath = path.join(dir, file);
+      const stat = fs.statSync(fullPath);
+      
+      if (stat.isDirectory()) {
+        findSpecFiles(fullPath, allFiles);
+      } else if (file.endsWith('.spec.js') || file.endsWith('.test.js')) {
+        allFiles.push(path.relative(process.cwd(), fullPath));
+      }
+    }
+  } catch (err) {}
+  return allFiles;
+}
+
+/** Promise wrapper for rl.question with explicit prompt */
 function ask(query) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  // Handle Ctrl+C gracefully
-  rl.on('SIGINT', () => {
-    console.log(chalk.yellow('\n  Cancelled.'));
-    process.exit(0);
-  });
-
-  return new Promise((resolve) => {
-    rl.question(query, (ans) => {
-      rl.close();
-      resolve(ans.trim());
-    });
+  rl.resume();
+  return new Promise(resolve => {
+    rl.question(query, (ans) => resolve(ans.trim()));
   });
 }
 
-/** Validates that input is a proper URL */
-async function promptUrl() {
+/** Validates and prompts for target URL */
+async function askUrl() {
   while (true) {
-    const url = await ask(chalk.white('  Enter target URL › '));
+    const url = await ask(chalk.white('\n  Enter target URL › '));
     
-    // Default fallback if empty (allow user to proceed with demo)
     if (!url) {
       const fallback = 'http://localhost:3000/pages/checkout-page.html';
-      console.log(chalk.dim(`  (Using default: ${fallback})`));
-      console.log(chalk.green(`  ✔ URL accepted: ${fallback}\n`));
+      process.stdout.write(chalk.dim(`  ✔ Using default: ${fallback}\n`));
       return fallback;
     }
 
     const isValid = (url.startsWith('http://') || url.startsWith('https://')) && url.includes('.');
     if (isValid) {
-      console.log(chalk.green(`  URL accepted: ${url}\n`));
+      process.stdout.write(chalk.green(`  ✔ URL accepted: ${url}\n`));
       return url;
     }
-    
-    console.log(chalk.red(`  Invalid URL - must start with http:// or https://`));
+    process.stdout.write(chalk.red(`  Invalid URL — must start with http:// or https://\n`));
   }
 }
 
-/** Lists files in /tests and asks user to select one */
-async function promptTestFile() {
-  const testsDir = path.join(process.cwd(), 'tests');
-  let files = [];
-  if (fs.existsSync(testsDir)) {
-    files = fs.readdirSync(testsDir).filter(f => f.endsWith('.spec.js'));
-  }
+/** Synchronous file search and prompt */
+async function askFile() {
+  process.stdout.write(`\n  Looking for test files in: ${chalk.dim(process.cwd())}\n`);
+  const files = findSpecFiles(process.cwd());
 
   if (files.length > 0) {
-    console.log(chalk.cyan('  Select a test file:'));
+    process.stdout.write(chalk.cyan('  Select a test file:\n'));
     files.forEach((f, i) => {
-      console.log(`${chalk.dim('    ' + (i + 1) + ')')} ${f}`);
+      process.stdout.write(`    ${chalk.dim((i+1)+')')} ${f}\n`);
     });
-    console.log(`${chalk.dim('    c)')} Custom path...`);
+    process.stdout.write(`    ${chalk.dim('c)')} Custom path...\n`);
 
-    const choice = await ask(chalk.white(`  Choice [1]: `));
-    
-    if (choice.toLowerCase() === 'c') {
-      return await ask(chalk.white('  Enter path to .spec.js: '));
+    while (true) {
+      const choice = (await ask(chalk.white('\n  Choice [1] › '))).toLowerCase();
+      if (choice === 'c') return await ask(chalk.white('  Enter path to .spec.js › '));
+      if (!choice) return files[0];
+      const idx = parseInt(choice) - 1;
+      if (idx >= 0 && idx < files.length) return files[idx];
+      process.stdout.write(chalk.red('  Invalid selection.\n'));
     }
-
-    const idx = (parseInt(choice) || 1) - 1;
-    const selected = files[idx] || files[0];
-    return path.join('tests', selected);
   } else {
-    return await ask(chalk.white('  Enter path to .spec.js: '));
+    process.stdout.write(chalk.yellow('  No .spec.js files found in current directory.\n'));
+    return await ask(chalk.white('  Enter path to .spec.js › '));
   }
 }
 
-async function startInteractiveFlow(defaultFile = null, dashboard = true, dryRun = false) {
-  const targetUrl = await promptUrl();
-  const testFile = defaultFile || await promptTestFile();
-
-  const { executeCLI } = await import('./cliRunner.js');
-  await executeCLI(testFile, dashboard, targetUrl, dryRun);
+/** Ask if user wants to run another test */
+async function askRunAgain() {
+  const ans = (await ask(chalk.white('\n  Run another test? [y/N] › '))).toLowerCase();
+  return ans === 'y' || ans === 'yes';
 }
 
-// ── MAIN DISPATCHER ──────────────────────────────────────────
-
+/** Main async run loop */
 async function main() {
-  if (command === 'run') {
-    const testFile = args[1];
-    const dashboard = args.includes('--dashboard');
-    const dryRun = args.includes('--dry-run');
+  const args = process.argv.slice(2);
+  const command = args[0];
 
+  // FORCE SHOW CURSOR JUST IN CASE
+  process.stdout.write('\x1b[?25h');
+
+  // CLEAN INPUT BUFFER
+  process.stdin.resume();
+
+  if (command === 'run' || !command) {
+    const dashboard = !args.includes('--no-dashboard');
+    const dryRun = args.includes('--dry-run');
     if (dryRun) process.env.SELFHEAL_DRY_RUN = 'true';
 
-    // If file provided via command line, just ask for URL
-    if (testFile) {
-      const targetUrl = await promptUrl();
+    let initialFile = command === 'run' ? args[1] : null;
+
+    if (initialFile) {
+        // ONE-SHOT MODE
+        let targetUrl = args.find(a => a.startsWith('--url='))?.split('=')[1];
+        if (!targetUrl) targetUrl = await askUrl();
+        
+        const { executeCLI } = await import('./cliRunner.js');
+        await executeCLI(initialFile, dashboard, targetUrl, dryRun);
+        process.stdout.write(chalk.yellow('\n  Run complete. Goodbye!\n'));
+        process.exit(0);
+    }
+
+    // INTERACTIVE LOOP (if no file provided via CLI)
+    while (true) {
+      const targetUrl = await askUrl();
+      const testFile = await askFile();
       const { executeCLI } = await import('./cliRunner.js');
       await executeCLI(testFile, dashboard, targetUrl, dryRun);
-    } else {
-      await startInteractiveFlow(null, dashboard, dryRun);
+      
+      const again = await askRunAgain();
+      if (!again) {
+        process.stdout.write(chalk.yellow('\n  Goodbye!\n'));
+        rl.close();
+        process.exit(0);
+      }
     }
 
   } else if (command === 'scan') {
     const testFile = args[1];
     if (!testFile) {
-      console.error(chalk.red('  [ERR] Missing test file. Usage: selfheal scan <file> [--json]'));
+      process.stdout.write(chalk.red('  [ERR] Missing test file.\n'));
       process.exit(1);
     }
-
     const { scoreFragility } = await import('../src/selector/fragilityScorer.js');
     const scores = scoreFragility(testFile);
-    
-    console.log(chalk.bold(`\n   Fragility scan — ${testFile}`));
-    console.log('   ----------------------------------------');
+    process.stdout.write(chalk.bold(`\n   Fragility scan — ${testFile}\n`));
     scores.forEach(s => {
       const scoreStr = s.fragilityScore.toString().padEnd(5);
       const riskColor = s.risk === 'high' ? chalk.red : (s.risk === 'low' ? chalk.green : chalk.yellow);
-      console.log(`   ${s.selector.padEnd(22)} ${scoreStr} ${riskColor(s.risk.toUpperCase())}`);
+      process.stdout.write(`   ${s.selector.padEnd(22)} ${scoreStr} ${riskColor(s.risk.toUpperCase())}\n`);
     });
-
-    if (args.includes('--json')) {
-      console.log(JSON.stringify({ testFile, scores }, null, 2));
-    }
+    process.exit(0);
 
   } else if (command === '--help' || command === '-h') {
-    console.log(`
-  ${chalk.bold('SelfHeal — AI-Powered Test Recovery')}
+    process.stdout.write(`
+  ${chalk.bold('SelfHeal — AI-Powered Test Entry')}
   ======================================
-
-  ${chalk.cyan('Usage:')}
-    selfheal                     ${chalk.dim('Interactive test run')}
-    selfheal run <file>          ${chalk.dim('Run specific test with healing')}
-    selfheal scan <file>         ${chalk.dim('Static fragility analysis')}
-    selfheal <any command>       ${chalk.dim('Wrap any command with healing')}
-
-  ${chalk.cyan('Options:')}
-    --dashboard   Live visualization dashboard
-    --dry-run     Audit mode (no patches/DB saves)
-    `);
-
-  } else if (!command) {
-    // NAKED COMMAND: Show interactive flow directly
-    await startInteractiveFlow();
+  Usage: selfheal [run <file>] [scan <file>]
+  `);
+    process.exit(0);
 
   } else {
-    // WRAP ANY COMMAND: e.g. "selfheal npm run dev"
+    // WRAP ANY COMMAND
     const fullCommand = args.join(' ');
-    runCommandWithHealing(fullCommand).then(code => process.exit(code));
+    const exitCode = await runCommandWithHealing(fullCommand);
+    process.exit(exitCode);
   }
 }
 
 main().catch(err => {
-  console.error(chalk.red(`\n  [CRITICAL] ${err.stack}`));
+  process.stdout.write(chalk.red(`\n  [CRITICAL] ${err.stack}\n`));
   process.exit(1);
 });

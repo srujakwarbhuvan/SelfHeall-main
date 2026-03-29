@@ -69,7 +69,7 @@ export async function executeCI(testFile, fragilityScores = []) {
     const healed = steps.filter(s => s.status === 'healed').length;
     const failed = steps.filter(s => s.status === 'fail').length;
 
-    writeReport(absFile, steps);
+    await writeReport(absFile, steps);
 
     const ciResult = {
         status,

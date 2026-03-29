@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 
 let activeProcess = null;
 
-export function createHttpServer(port = 3000) {
+export function createHttpServer(port = process.env.PORT || 3000) {
     const app = express();
     const server = createServer(app);
 

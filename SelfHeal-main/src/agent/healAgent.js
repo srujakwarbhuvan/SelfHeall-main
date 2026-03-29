@@ -12,7 +12,7 @@
  * ============================================================
  */
 
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import { findCachedHeal, saveHeal } from '../storage/healHistory.js';
 import { makeHealResult, HEAL_STRATEGIES } from '../../CONTRACT.js';
@@ -149,14 +149,15 @@ export async function askHealAgent(failureBundle) {
     attempt++;
 
     try {
-      const ai = new GoogleGenAI({ apiKey: key });
+      const genAI = new GoogleGenerativeAI(key);
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-      // Build content — only add screenshot if it's a real base64 string (>100 chars)
+      // Build contents array
       const parts = [{ text: prompt }];
       
       if (screenshotBase64 && screenshotBase64.length > 100) {
         // Remove data URL prefix if present
-        const base64Data = screenshotBase64.replace(/^data:image\/\w+;base64,/, '');
+        const base64Data = String(screenshotBase64).replace(/^data:image\/\w+;base64,/, '');
         parts.push({
           inlineData: {
             data: base64Data,
@@ -165,12 +166,9 @@ export async function askHealAgent(failureBundle) {
         });
       }
 
-      const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [{ role: 'user', parts }],
-      });
-
-      let text = (typeof res.text === 'function' ? res.text() : res.text)
+      const res = await model.generateContent({ contents: [{ role: 'user', parts }] });
+      const response = await res.response;
+      let text = response.text()
         .trim()
         .replace(/^```(?:json)?\n?/, '')
         .replace(/\n?```$/, '')

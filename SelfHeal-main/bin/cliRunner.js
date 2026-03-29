@@ -98,7 +98,7 @@ async function runTests(absFile, targetUrl, io) {
         try { await browser.close(); } catch {}
     }
 
-    writeReport(absFile, getStepHistory());
+    await writeReport(absFile, getStepHistory());
     io.emit('run:complete', { status });
     return status;
 }
@@ -148,38 +148,32 @@ export async function executeCLI(testFile, dashboard, targetUrl, dryRun = false)
     });
 
     if (dashboard) {
-        console.log(`  Dashboard: ${chalk.underline.blue(serverUrl)}`);
+        process.stdout.write(`  Dashboard: ${chalk.underline.blue(serverUrl)}\n`);
         try {
             await open(serverUrl).catch(() => {});
         } catch (e) {}
-        console.log(chalk.dim('  Dashboard opened — awaiting trigger...\n'));
-        
-        // Keep process alive
-        setInterval(() => {}, 1000);
-    } else {
-        // Run immediately
-        setRunnerContext({ testFile: absFile, io, dryRun });
-        const status = await runTests(absFile, targetUrl, io);
-
-        // Summary
-        const steps = getStepHistory();
-        const passed = steps.filter(s => s.status === 'pass').length;
-        const healed = steps.filter(s => s.status === 'healed').length;
-        const failed = steps.filter(s => s.status === 'fail').length;
-
-        console.log(`\n  ─── Results ───────────────────────────`);
-        console.log(`  Passed: ${chalk.green(passed)}  Healed: ${chalk.yellow(healed)}  Failed: ${chalk.red(failed)}`);
-        if (healed > 0) console.log(chalk.dim(`  ${healed} selector(s) auto-healed by AI`));
-        console.log(`  Report: heal-report.json`);
-        console.log(`  Dashboard: ${serverUrl} (still running)`);
-        console.log(`  ────────────────────────────────────────\n`);
-
-        closeDb();
-
-        if (failed > 0) {
-            process.exit(1);
-        } else {
-            setTimeout(() => { server.close(); process.exit(0); }, 3000);
-        }
+        process.stdout.write(chalk.dim('  Dashboard opened — running test now...\n\n'));
     }
+
+    // Always run immediately in the new CLI flow
+    setRunnerContext({ testFile: absFile, io, dryRun });
+    const status = await runTests(absFile, targetUrl, io);
+
+    // Summary
+    const steps = getStepHistory();
+    const passed = steps.filter(s => s.status === 'pass').length;
+    const healed = steps.filter(s => s.status === 'healed').length;
+    const failedNum = steps.filter(s => s.status === 'fail').length;
+
+    process.stdout.write(`\n  ─── Results ───────────────────────────\n`);
+    process.stdout.write(`  Passed: ${chalk.green(passed)}  Healed: ${chalk.yellow(healed)}  Failed: ${chalk.red(failedNum)}\n`);
+    if (healed > 0) process.stdout.write(chalk.dim(`  ${healed} selector(s) auto-healed by AI\n`));
+    process.stdout.write(`  Report: heal-report.json\n`);
+    process.stdout.write(`  ────────────────────────────────────────\n`);
+
+    closeDb();
+    
+    // Graceful server shutdown before returning
+    await new Promise(r => server.close(r));
+    return status;
 }

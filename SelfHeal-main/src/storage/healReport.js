@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { getAllHeals } from './healHistory.js';
+import { syncReportToFirebase } from '../db/saveReport.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,7 +52,7 @@ function calculateStabilityScore(steps) {
 /**
  * Write a comprehensive heal report.
  */
-export function writeReport(testFile, stepsHistory) {
+export async function writeReport(testFile, stepsHistory) {
     const totalSteps = stepsHistory.length;
     let healsApplied = 0;
     let failedSteps = 0;
@@ -138,4 +139,7 @@ export function writeReport(testFile, stepsHistory) {
 
         console.log(`  [Report] Stability: ${stabilityScore}/100 | Trend: ${trend} (avg last ${recent.length} runs: ${avgStability}/100)`);
     }
+
+    // ── Sync to Firebase ──────────────────────────────────────
+    await syncReportToFirebase(report).catch(() => {});
 }
